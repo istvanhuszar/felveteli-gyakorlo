@@ -341,13 +341,21 @@ async function initCloud() {
       const r = snap.exists ? snap.data() : null;
       const remote = r ? (r.players ? { players: r.players, updated: r.updated || 0 } : (r.items ? { players: { 'Zsófi': normP({ items: r.items, sessions: r.sessions, updated: r.updated }) }, updated: r.updated || 0 } : null)) : null;
       if (remote && (remote.updated || 0) > (ALL.updated || 0)) {
-        ALL = remote; Object.values(ALL.players).forEach(normP);
+        ALL = remote; Object.values(ALL.players).forEach(normP); if (KB) migrateIds();
         if (PLAYER) P = normP(ALL.players[PLAYER] ||= blankP());
         try { localStorage.setItem(ALL_KEY, JSON.stringify(ALL)); } catch (e) {}
       } else if (Object.keys(ALL.players).length && dbWritable) pushRemote();
     }
   } catch (e) { db = null; }
   renderHeader(); if (current === 'home' && KB) renderHome();
+}
+
+// Régi kérdésazonosítók átírása (a tudástár "aliases" listája alapján), hogy a haladás ne vesszen el.
+function migrateIds() {
+  const al = KB && KB.aliases; if (!al) return false;
+  let changed = false;
+  Object.values(ALL.players).forEach(pl => { Object.keys(pl.items || {}).forEach(k => { if (al[k]) { if (!pl.items[al[k]]) pl.items[al[k]] = pl.items[k]; delete pl.items[k]; changed = true; } }); });
+  return changed;
 }
 
 // ---------- Kiválasztás ----------
@@ -368,7 +376,9 @@ function pickQuestions(n, onlyWrong) {
 }
 function buildAuto(q) {
   const c = cardById[q.card];
-  const others = shuffle(KB.cards.filter(o => o.cat === c.cat && o.id !== c.id)).slice(0, 3).map(o => o.term);
+  // Gyűjtőfogalom (pl. a költői kép a megszemélyesítést is magában foglalja) és rokon pár nem lehet "rossz" válasz: mindkettő igaznak tűnhet.
+  const GENERIC = ['koltoi-kep', 'szoszerkezet-szintagma'], RELATED = { litotesz: ['kicsinyites'], kicsinyites: ['litotesz'] };
+  const others = shuffle(KB.cards.filter(o => o.cat === c.cat && o.id !== c.id && !GENERIC.includes(o.id) && !(RELATED[c.id] || []).includes(o.id))).slice(0, 3).map(o => o.term);
   return { ...q, prompt: 'Melyik fogalom meghatározása ez?', def: q.q, options: shuffle([c.term, ...others]), correct: c.term };
 }
 function prep(q) {
@@ -376,7 +386,7 @@ function prep(q) {
   if (q.type === 'mc') return { ...q, prompt: q.q, options: shuffle(q.options), correct: q.options[q.answer] };
   return { ...q, prompt: q.q };
 }
-const norm = s => s.trim().replace(/\s+/g, ' ').toLocaleLowerCase('hu');
+const norm = s => s.trim().replace(/[.!?]+$/, '').trim().replace(/\s+/g, ' ').toLocaleLowerCase('hu');
 const checkFill = (q, v) => q.accept.some(a => norm(a) === norm(v));
 
 // ---------- Nézetek ----------
@@ -553,7 +563,7 @@ function startCards() {
 function renderCard() {
   if (di >= deck.length) {
     const knewIt = deck.filter(c => (P.items['c:' + c.id]?.b || 0) >= 2).length;
-    view.innerHTML = `<section><div class="say"><div class="bob">${felviki('cheer')}</div><div class="fb ok pop"><b class="k">Végigértél!</b><span>${deck.length} kártyát néztél át${knewIt ? `, és ebből ${knewIt} már biztosan megy` : ''}. ${pick(['Szuper szorgalmas vagy!', 'Ügyes vagy, {n}!', 'Ez igen, ez kitartás!'])}</span></div></div>
+    view.innerHTML = `<section><div class="say"><div class="bob">${felviki('cheer')}</div><div class="fb ok pop"><b class="k">Végigértél!</b><span>${deck.length} kártyát néztél át${knewIt ? `, és ebből ${knewIt} már ment` : ''}. ${pick(['Szuper szorgalmas vagy!', 'Ügyes vagy, {n}!', 'Ez igen, ez kitartás!'])}</span></div></div>
       <div class="row"><button class="btn" id="again" type="button">Újra</button><button class="btn ghost" id="toQuiz" type="button">Jöhet a kvíz</button></div></section>`;
     $('#again').onclick = startCards; $('#toQuiz').onclick = () => startQuiz(false); renderHeader(); return;
   }
@@ -597,7 +607,7 @@ function renderQ() {
       <div class="prompt">${esc(q.prompt)}</div>
       ${q.def ? `<p style="margin:0" class="hl-box"><span class="hl">${esc(q.def)}</span></p>` : ''}
       ${isFill
-        ? `<form id="fillForm" class="opts"><label class="small muted" for="fillIn">A válaszod (pontosan, helyes ékezetekkel)</label><input type="text" id="fillIn" autocomplete="off" autocapitalize="off" spellcheck="false"><button class="btn" type="submit">Ellenőrzés</button></form>`
+        ? `<form id="fillForm" class="opts"><label class="small muted" for="fillIn">A válaszod (pontosan, helyes ékezetekkel)</label><input type="text" id="fillIn" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="done"><button class="btn" type="submit">Ellenőrzés</button></form>`
         : `<div class="opts">${q.options.map((o, k) => `<button class="opt" type="button" data-k="${k}">${esc(o)}</button>`).join('')}</div>`}
       <div id="fb"></div>
     </div>
@@ -629,6 +639,7 @@ function answer(given, ok) {
       <span>${esc(q.expl)}</span></div></div>
     <button class="btn" id="next" type="button" style="margin-top:12px;width:100%">${quiz.i + 1 < quiz.qs.length ? 'Következő →' : 'Lássuk az eredményt!'}</button>`;
   const nx = $('#next'); nx.focus({ preventScroll: true });
+  try { $('#fb').scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'nearest' }); } catch (e) {}
   nx.onclick = () => { quiz.i++; if (quiz.i < quiz.qs.length) renderQ(); else finishQuiz(); };
 }
 function finishQuiz() {
@@ -673,7 +684,7 @@ function statsBlock(data) {
   const sess = (data.sessions || []).slice(-8).reverse();
   return `<div class="list">${cs.map(x => { const p = x.r + x.w ? Math.round(100 * x.r / (x.r + x.w)) : 0; return `<div class="bar"><span>${esc(x.name)} <span class="small muted">(${x.tried}/${x.total})</span></span><div class="progress"><i style="width:${p}%"></i></div><span>${x.r + x.w ? p + '%' : '–'}</span></div>`; }).join('')}</div>
     <h2>Legtöbbször rontott</h2>
-    ${missed.length ? `<div class="list">${missed.map(q => `<div class="item"><span class="tag">${esc(cardById[q.card]?.term)} · ${data.items[q.id].w}× rossz</span><span>${esc(q.type === 'mcauto' ? q.q : q.q)}</span></div>`).join('')}</div>` : '<p class="muted">Még nincs rontott kérdés.</p>'}
+    ${missed.length ? `<div class="list">${missed.map(q => `<div class="item"><span class="tag">${esc(cardById[q.card]?.term)} · ${data.items[q.id].w}× rossz</span><span>${esc(q.type === 'mcauto' ? 'Melyik fogalom: ' + q.q : q.q)}</span><span class="small">Helyes: <b>${esc(q.type === 'mcauto' ? cardById[q.card]?.term : q.type === 'fill' ? q.accept.join(' / ') : q.options[q.answer])}</b></span></div>`).join('')}</div>` : '<p class="muted">Még nincs rontott kérdés.</p>'}
     <h2>Legutóbbi kvízek</h2>
     ${sess.length ? `<div class="list">${sess.map(x => `<div class="bar"><span>${new Date(x.d).toLocaleString('hu-HU', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}${x.w ? ' · hibák' : ''}</span><div class="progress"><i style="width:${100 * x.s / x.n}%"></i></div><span>${x.s}/${x.n}</span></div>`).join('')}</div>` : '<p class="muted">Még nem volt kvíz.</p>'}`;
 }
@@ -705,7 +716,10 @@ async function renderStats() {
       try {
         const d = JSON.parse(await f.text());
         if (d.app !== 'zsofi-felveteli' || !d.progress || typeof d.progress.items !== 'object') throw new Error('format');
+        const who = PLAYERS.includes(d.player) ? d.player : PLAYER;
+        if (who !== PLAYER) setPlayer(who);
         P = normP({ items: d.progress.items || {}, sessions: d.progress.sessions || [], updated: 0 }); save(); renderStats();
+        $('#bkMsg').innerHTML = `<div class="fb ok"><span>${esc(who)} haladását visszatöltöttem.</span></div>`;
       } catch (err) { $('#bkMsg').innerHTML = '<div class="fb bad"><span>Ez nem a felvételi gyakorló mentésfájlja. Válaszd ki a „felviki-….json” (vagy régebbi „felveteli-haladas-….json”) fájlt.</span></div>'; }
     };
   }
@@ -740,6 +754,7 @@ $('#homeBtn').onclick = () => { if (quizInProgress()) askExitQuiz(); else goHome
 loadLocal();
 fetch('tudastar.json', { cache: 'no-cache' }).then(r => { if (!r.ok) throw new Error(r.status); return r.json(); }).then(d => {
   KB = d; KB.cards.forEach(c => cardById[c.id] = c); KB.categories.forEach(c => catName[c.id] = c.name);
+  if (migrateIds()) { ALL.updated = Date.now(); try { localStorage.setItem(ALL_KEY, JSON.stringify(ALL)); } catch (e) {} }
   if (!PLAYER) { current = 'pick'; renderPick(); renderHeader(); }
   else {
     let seen = false; try { seen = localStorage.getItem('zsofi-help-seen') === '1'; localStorage.setItem('zsofi-help-seen', '1'); } catch (e) { seen = true; }
