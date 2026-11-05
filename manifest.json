@@ -2,6 +2,7 @@
   "name": "Felvételi gyakorló",
   "short_name": "Felvételi",
   "description": "Magyar felvételi gyakorló: tanulókártyák és kvíz magyarázatokkal.",
+  "id": "./",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

@@ -264,6 +264,17 @@ function resultPraise(pct, prevPct) {
 }
 
 const QUIZ_LEN = 10;
+// Telepítés appként (csak a GitHub-os változatban)
+let installEvt = null;
+const isStandalone = () => { try { return matchMedia('(display-mode: standalone)').matches || matchMedia('(display-mode: fullscreen)').matches || navigator.standalone === true; } catch (e) { return false; } };
+window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installEvt = e; if (current === 'home' && KB) renderHome(); });
+window.addEventListener('appinstalled', () => { installEvt = null; if (current === 'home' && KB) renderHome(); });
+function installBox() {
+  if (window.claude || isStandalone()) return '';
+  return `<div class="say"><div>${felviki('think')}</div><div class="fb" style="background:#fff8d6"><b class="k" style="color:var(--ink)">Tegyél ki a kezdőképernyőre!</b>
+    ${installEvt ? `<span>Így igazi appként, teljes képernyőn nyílok meg, internet nélkül is.</span><button class="btn" id="installBtn" type="button" style="margin-top:6px">Telepítés</button>`
+      : `<span>Chrome-ban: jobb fent ⋮ → „Alkalmazás telepítése” vagy „Hozzáadás a kezdőképernyőhöz” → <b>Telepítés</b> (ne a „Parancsikon”-t válaszd). Utána a kezdőképernyőn lévő ikonról indíts.</span>`}</div></div>`;
+}
 const LS_KEY = 'zsofi-felveteli-progress-v1';
 
 let KB = null, cardById = {}, catName = {};
@@ -359,6 +370,7 @@ function renderHome() {
       <div class="bob">${felviki('wave')}</div>
       <div class="bubble pop"><h1>Szia Zsófi! 🙂</h1><p>FelViki vagyok és azért jöttem, hogy segítsek a felkészülésben.</p></div>
     </div>
+    ${installBox()}
     ${chipsHtml()}
     <div class="stats">
       <div class="stat"><b>${answered}/${qs.length}</b><span>kérdés kipróbálva</span></div>
@@ -377,6 +389,7 @@ function renderHome() {
     ${cloudNote()}
   </section>`;
   bindChips(renderHome);
+  if ($('#installBtn')) $('#installBtn').onclick = async () => { const e = installEvt; installEvt = null; try { e.prompt(); await e.userChoice; } catch (err) {} renderHome(); };
   $('#tQuiz').onclick = () => startQuiz(false);
   $('#tWrong').onclick = () => startQuiz(true);
   $('#tCards').onclick = () => go('cards', startCards);
