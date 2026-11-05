@@ -154,6 +154,22 @@ details.kb p{margin:8px 0 0}
 .note{font-size:16px;color:var(--soft);border:2px dashed var(--soft);border-radius:var(--sk);padding:8px 12px;background:rgba(255,255,255,.7)}
 .deco{position:absolute;pointer-events:none;z-index:0}
 section>*{position:relative;z-index:1}
+.tile.c-orange{background:#fff0dc}.tile.c-yellow{background:#fff6c2}
+.tile .done{position:absolute;right:10px;bottom:8px;font-family:var(--hand);font-size:22px;color:var(--ok);transform:rotate(-6deg)}
+.stickers{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.sticker{display:flex;flex-direction:column;align-items:center;gap:4px;text-align:center;font-size:15px;line-height:1.15}
+.sticker .disc{width:84px;height:84px;border-radius:50%;border:2.5px solid var(--ink);background:#fff;display:flex;align-items:center;justify-content:center;box-shadow:3px 4px 0 var(--ink);position:relative}
+.sticker .disc svg{width:58%;height:58%}
+.sticker.on .disc{background:#fff6c2;transform:rotate(-4deg)}
+.sticker.off{opacity:.38;filter:grayscale(1)}
+.sticker b{font-family:var(--hand);font-size:21px;line-height:1}
+.linkbtn{font:inherit;font-size:15px;background:none;border:0;color:var(--soft);text-decoration:underline dashed;cursor:pointer;padding:4px 0;align-self:flex-start}
+textarea{font:inherit;font-size:18px;width:100%;min-height:90px;padding:10px 12px;border:2.5px solid var(--ink);border-radius:var(--sk);background:#fffef8;color:var(--ink)}
+.handoff{display:flex;flex-direction:column;align-items:center;gap:14px;text-align:center;padding-top:30px}
+.handoff .fv{width:130px}
+.vs{display:grid;grid-template-columns:1fr auto 1fr;gap:10px;align-items:center;text-align:center}
+.vs b{font-family:var(--hand);font-size:54px;line-height:1}
+.vs>div{display:flex;flex-direction:column;align-items:center;gap:2px}
 .confetti{position:fixed;inset:0;pointer-events:none;z-index:50;overflow:hidden}
 .confetti i{position:absolute;top:-24px;width:12px;height:16px;animation:fall 2.8s cubic-bezier(.3,.6,.5,1) forwards}
 @keyframes fall{to{transform:translateY(110vh) rotate(720deg)}}
@@ -271,6 +287,97 @@ function resultPraise(pct, prevPct) {
 }
 
 const QUIZ_LEN = 10;
+const EXAM_DATE = new Date('2027-01-23T10:00:00+01:00');   // központi írásbeli (forrás: a 2026/2027-es tanév rendje)
+const WEEK_GOAL = 5;
+const dayKey = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+function daysToExam() { const ms = EXAM_DATE - new Date(); return ms > 0 ? Math.ceil(ms / 86400000) : 0; }
+function touchDay(T = P) { (T.days ||= {})[dayKey()] = ((T.days || {})[dayKey()] || 0) + 1; }
+function streakDays(T = P) {
+  const d = T.days || {}; const day = new Date(); let n = 0;
+  if (!d[dayKey(day)]) day.setDate(day.getDate() - 1);
+  while (d[dayKey(day)]) { n++; day.setDate(day.getDate() - 1); }
+  return n;
+}
+function weekCount(T = P) {
+  const now = new Date(); const start = new Date(now); start.setHours(0, 0, 0, 0); start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
+  return (T.sessions || []).filter(x => x.d >= start.getTime()).length;
+}
+const totalCorrect = (T = P) => Object.entries(T.items || {}).reduce((a, [k, x]) => a + (k.startsWith('c:') ? 0 : (x.r || 0)), 0);
+// Seedelt keverés: a napi kihívás egy napon mindenkinek ugyanaz
+function seeded(str) { let h = 1779033703 ^ str.length; for (const ch of str) { h = Math.imul(h ^ ch.charCodeAt(0), 3432918353); h = (h << 13) | (h >>> 19); } return () => { h = Math.imul(h ^ (h >>> 16), 2246822507); h = Math.imul(h ^ (h >>> 13), 3266489909); h ^= h >>> 16; return (h >>> 0) / 4294967296; }; }
+function seededShuffle(a, rnd) { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+function dailyQuestions() {
+  const rnd = seeded('felviki-' + dayKey());
+  const exam = seededShuffle(KB.questions.filter(q => q.cat === 'felveteli'), rnd).slice(0, 3);
+  const other = seededShuffle(KB.questions.filter(q => q.cat !== 'felveteli' && q.type !== 'mcauto'), rnd).slice(0, 2);
+  return seededShuffle([...exam, ...other], rnd);
+}
+// Matricák
+const BADGES = [
+  { id: 'first', name: 'Első kvíz', desc: 'Befejeztél egy kvízt', icon: () => doodle.star('#ffd94a'), test: c => c.quiz },
+  { id: 'perfect', name: 'Hibátlan kör', desc: 'Minden válasz jó egy kvízben', icon: () => doodle.trophy(), test: c => c.quiz && c.pct === 100 && c.n >= 5 },
+  { id: 'streak5', name: 'Lendületben', desc: '5 jó válasz egymás után', icon: () => doodle.bolt(), test: c => (c.best || 0) >= 5 },
+  { id: 'streak10', name: 'Megállíthatatlan', desc: '10 jó válasz egymás után', icon: () => doodle.bolt('#ff7a9c'), test: c => (c.best || 0) >= 10 },
+  { id: 'days3', name: '3 napos sorozat', desc: '3 egymást követő napon gyakoroltál', icon: () => doodle.heart(), test: () => streakDays() >= 3 },
+  { id: 'days7', name: 'Egy hét kitartás', desc: '7 napos sorozat', icon: () => doodle.heart('#9b7bea'), test: () => streakDays() >= 7 },
+  { id: 'c50', name: '50 jó válasz', desc: 'Összesen 50 jó válasz', icon: () => doodle.star('#33b97f'), test: () => totalCorrect() >= 50 },
+  { id: 'c200', name: '200 jó válasz', desc: 'Összesen 200 jó válasz', icon: () => doodle.star('#4a8fe7'), test: () => totalCorrect() >= 200 },
+  { id: 'daily', name: 'Napi kihívás', desc: 'Teljesítettél egy napi kihívást', icon: () => doodle.swirl('#ff9f43'), test: c => c.mode === 'daily' },
+  { id: 'daily7', name: '7 napi kihívás', desc: '7 különböző napon', icon: () => doodle.swirl('#9b7bea'), test: () => Object.keys(P.daily || {}).length >= 7 },
+  { id: 'exam80', name: 'Felvételi bajnok', desc: 'Legalább 80% a Felvételi feladatok témakörben', icon: () => doodle.trophy('#ff7a9c'), test: c => c.quiz && c.cat === 'felveteli' && c.pct >= 80 },
+  { id: 'fixer', name: 'Hibavadász', desc: 'Hibátlan „Hibáim” kör', icon: () => doodle.oops(), test: c => c.mode === 'wrong' && c.pct === 100 },
+  { id: 'cards', name: 'Kártyabajnok', desc: 'Minden kártyát átnéztél', icon: () => doodle.cards(), test: () => KB.cards.every(k => P.items['c:' + k.id]) },
+  { id: 'duel', name: 'Párbajhős', desc: 'Megnyertél egy párbajt', icon: () => doodle.star('#ff9f43'), test: c => c.duelWin },
+];
+function checkBadges(ctx, T = P) {
+  const got = (T.badges ||= {}); const fresh = [];
+  const keepP = P; P = T;
+  try { BADGES.forEach(b => { if (!got[b.id] && b.test(ctx || {})) { got[b.id] = Date.now(); fresh.push(b); } }); } finally { P = keepP; }
+  return fresh;
+}
+const stickerHtml = (b, on) => `<div class="sticker ${on ? 'on' : 'off'}"><div class="disc">${b.icon()}</div><b>${esc(b.name)}</b><span class="small muted">${esc(b.desc)}</span></div>`;
+function showStickers(fresh, who) {
+  if (!fresh.length) return;
+  setTimeout(() => {
+    const m = modal(`<div class="q" style="max-width:440px;width:100%;align-items:center;text-align:center"><b class="praise">${fresh.length > 1 ? 'Új matricák' : 'Új matrica'}${who ? ', ' + esc(who) : ''}!</b>
+      <div class="stickers" style="grid-template-columns:repeat(${Math.min(3, fresh.length)},minmax(0,1fr))">${fresh.map(b => stickerHtml(b, true)).join('')}</div>
+      <button class="btn" id="mOk" type="button">Szuper!</button></div>`);
+    m.querySelector('#mOk').onclick = closeModal; confetti();
+  }, 900);
+}
+// Megosztás: telefonon a megosztás menü, máshol vágólap
+async function shareText(text, title) {
+  if (!window.claude && navigator.share) { try { await navigator.share({ title, text }); return 'shared'; } catch (e) { if (e && e.name === 'AbortError') return 'cancel'; } }
+  try { await navigator.clipboard.writeText(text); return 'copied'; } catch (e) {}
+  const m = modal(`<div class="q" style="max-width:480px;width:100%"><b class="k">Másold ki</b><textarea id="mTxt" readonly>${esc(text)}</textarea><button class="btn" id="mOk" type="button">Kész</button></div>`);
+  const t = m.querySelector('#mTxt'); t.focus(); t.select(); m.querySelector('#mOk').onclick = closeModal;
+  return 'manual';
+}
+function summaryText() {
+  const cs = catStats(P.items);
+  let tr = 0, tw = 0; Object.entries(P.items).forEach(([k, x]) => { if (!k.startsWith('c:')) { tr += x.r; tw += x.w; } });
+  const missed = KB.questions.filter(q => P.items[q.id]?.w).sort((a, b) => P.items[b.id].w - P.items[a.id].w).slice(0, 5);
+  const lines = [`FelViki – ${PLAYER} eredményei (${new Date().toLocaleDateString('hu-HU')})`,
+    `Kvízek: ${P.sessions.length} · Jó válaszok: ${tr} · Pontosság: ${tr + tw ? Math.round(100 * tr / (tr + tw)) + '%' : '–'}`,
+    `Sorozat: ${streakDays()} nap · Ezen a héten: ${weekCount()}/${WEEK_GOAL} kvíz · Matricák: ${Object.keys(P.badges || {}).length}/${BADGES.length}`,
+    '', 'Témakörök:', ...cs.filter(x => x.r + x.w).map(x => `• ${x.name}: ${Math.round(100 * x.r / (x.r + x.w))}% (${x.tried}/${x.total} kérdés)`)];
+  if (missed.length) lines.push('', 'Legtöbbször rontott:', ...missed.map(q => `• ${q.type === 'mcauto' ? cardById[q.card]?.term : q.q} (${P.items[q.id].w}×)`));
+  if ((P.reports || []).length) lines.push('', `Jelzett kérdések: ${P.reports.length}`, ...P.reports.slice(-10).map(r => `• ${r.src ? r.src + ' – ' : ''}${r.q}${r.note ? ' → ' + r.note : ''}`));
+  return lines.join('\n');
+}
+function reportQuestion(q) {
+  const m = modal(`<div class="q" style="max-width:480px;width:100%"><div class="say"><div>${felviki('think')}</div><div class="fb" style="background:#fff"><b class="k" style="color:var(--ink)">Hibás a kérdés?</b><span>Köszönöm, hogy szólsz! Írd le röviden, mi a gond (nem kötelező).</span></div></div>
+    <label class="small muted" for="mNote">Megjegyzés</label><textarea id="mNote" placeholder="pl. szerintem a másik válasz is jó"></textarea>
+    <div class="row"><button class="btn ghost" id="mNo" type="button">Mégse</button><button class="btn" id="mSend" type="button">Jelzés küldése</button></div><div id="mMsg"></div></div>`);
+  m.querySelector('#mNo').onclick = closeModal;
+  m.querySelector('#mSend').onclick = async () => {
+    const note = m.querySelector('#mNote').value.trim();
+    const text = q.type === 'mcauto' ? q.def : q.prompt;
+    (P.reports ||= []).push({ id: q.id, q: text, src: q.src || '', note, t: Date.now() }); save();
+    const r = await shareText(`FelViki hibajelzés (${PLAYER})\n${q.src ? 'Forrás: ' + q.src + '\n' : ''}Kérdés: ${text}\nAz app szerint helyes: ${q.type === 'fill' ? q.accept.join(' / ') : q.correct}${note ? '\nMegjegyzés: ' + note : ''}`, 'FelViki hibajelzés');
+    if (r !== 'manual') { closeModal(); }
+  };
+}
 // Telepítés appként (csak a GitHub-os változatban)
 let installEvt = null;
 const isStandalone = () => { try { return matchMedia('(display-mode: standalone)').matches || matchMedia('(display-mode: fullscreen)').matches || navigator.standalone === true; } catch (e) { return false; } };
@@ -300,6 +407,12 @@ function mark(id, correct) {
   const x = it(id);
   if (correct) { x.r++; x.b = Math.min(5, (x.b || 1) + 1); } else { x.w++; x.b = 1; }
   x.t = Date.now(); save();
+}
+function markFor(name, id, correct) {
+  const T = (ALL.players[name] ||= blankP()); T.items ||= {};
+  const x = (T.items[id] ||= { b: 0, r: 0, w: 0, t: 0 });
+  if (correct) { x.r++; x.b = Math.min(5, (x.b || 1) + 1); } else { x.w++; x.b = 1; }
+  x.t = Date.now(); T.updated = Date.now(); save();
 }
 function normP(x) { x = x || blankP(); x.items ||= {}; x.sessions ||= []; x.updated ||= 0; return x; }
 function loadLocal() {
@@ -383,7 +496,7 @@ function buildAuto(q) {
 }
 function prep(q) {
   if (q.type === 'mcauto') return buildAuto(q);
-  if (q.type === 'mc') return { ...q, prompt: q.q, options: shuffle(q.options), correct: q.options[q.answer] };
+  if (q.type === 'mc') return { ...q, prompt: q.q, options: q.fixed ? q.options.slice() : shuffle(q.options), correct: q.options[q.answer] };
   return { ...q, prompt: q.q };
 }
 const norm = s => s.trim().replace(/[.!?]+$/, '').trim().replace(/\s+/g, ' ').toLocaleLowerCase('hu');
@@ -466,15 +579,19 @@ function renderHome() {
     ${installBox()}
     ${chipsHtml()}
     <div class="stats">
-      <div class="stat"><b>${answered}/${qs.length}</b><span>kérdés kipróbálva</span></div>
-      <div class="stat"><b>${wrong}</b><span>hiba vár javításra</span></div>
-      <div class="stat"><b>${last ? Math.round(100 * last.s / last.n) + '%' : '–'}</b><span>legutóbbi kvíz</span></div>
+      <div class="stat"><b>${daysToExam() || '–'}</b><span>${daysToExam() ? 'nap a felvételiig (jan. 23.)' : 'felvételi'}</span></div>
+      <div class="stat"><b>${streakDays()}</b><span>napos sorozat</span></div>
+      <div class="stat"><b>${Math.min(weekCount(), WEEK_GOAL)}/${WEEK_GOAL}</b><span>heti cél: kvíz${weekCount() >= WEEK_GOAL ? ' ✓' : ''}</span></div>
     </div>
     <div class="tiles">
       <button class="tile main" type="button" id="tQuiz"><span class="ic">${doodle.bolt()}</span><b>Jöhet a kvíz!</b><span class="small">${QUIZ_LEN} kérdés vegyesen: válassz vagy írd be. A hibáid előre kerülnek.</span></button>
+      <button class="tile c-yellow" type="button" id="tDaily"><span class="ic">${doodle.swirl('#ff9f43')}</span><b>Napi kihívás</b><span class="small">5 kérdés, ma mindenkinek ugyanaz</span>${(P.daily || {})[dayKey()] ? `<span class="done">kész: ${P.daily[dayKey()].s}/${P.daily[dayKey()].n}</span>` : ''}</button>
+      <button class="tile c-orange" type="button" id="tExam"><span class="ic">${doodle.star('#ff9f43')}</span><b>Igazi felvételi</b><span class="small">${KB.questions.filter(q => q.cat === 'felveteli').length} feladat a régi feladatlapokból</span></button>
       <button class="tile c-blue" type="button" id="tCards"><span class="ic">${doodle.cards()}</span><b>Kártyák</b><span class="small">Fordítsd meg, tudtad-e?</span></button>
       <button class="tile c-pink" type="button" id="tWrong" ${wrong ? '' : 'disabled'}><span class="ic">${doodle.oops()}</span><b>Hibáim</b><span class="small">${wrong ? wrong + ' kérdés újra' : 'Most nincs egy se!'}</span></button>
       <button class="tile c-green" type="button" id="tStats"><span class="ic">${doodle.trophy()}</span><b>Eredmények</b><span class="small">Hol tartok?</span></button>
+      <button class="tile c-pink" type="button" id="tDuel"><span class="ic">${stick.flag('#ff7a9c')}</span><b>Párbaj</b><span class="small">Zsófi kontra Lili</span></button>
+      <button class="tile c-yellow" type="button" id="tBadges"><span class="ic">${doodle.trophy()}</span><b>Matricáim</b><span class="small">${Object.keys(P.badges || {}).length}/${BADGES.length} gyűjtve</span></button>
       <button class="tile c-purple" type="button" id="tKb"><span class="ic">${doodle.book()}</span><b>Tudástár</b><span class="small">${KB.cards.length} fogalom</span></button>
       <button class="tile wide" type="button" id="tHelp"><span class="ic">${doodle.question()}</span><b>Hogyan működik?</b><span class="small">FelViki elmagyarázza</span></button>
     </div>
@@ -490,6 +607,10 @@ function renderHome() {
   $('#tStats').onclick = () => go('stats', renderStats);
   $('#tKb').onclick = () => go('kb', renderKb);
   $('#tHelp').onclick = () => go('help', renderHelp);
+  $('#tDaily').onclick = () => startQuiz(false, { mode: 'daily' });
+  $('#tExam').onclick = () => startQuiz(false, { cat: 'felveteli' });
+  $('#tDuel').onclick = startDuel;
+  $('#tBadges').onclick = () => go('badges', renderBadges);
 }
 
 // ----- Ki tanul most? -----
@@ -536,6 +657,15 @@ function renderHelp() {
     <p style="margin:0">Amit elrontottál, az a „Hibáim” gombbal újra előjön. Ha egy kérdésre többször jól válaszolsz, kikerül a hibák közül. Az új kvízekben is a rontott kérdések jönnek először.</p>
     <h2>5. Nézd meg, hol tartasz</h2>
     <p style="margin:0">Az „Eredmények” oldalon témakörönként látod, hány százalékban válaszoltál jól, melyik kérdéseket rontottad a legtöbbször, és hogyan sikerültek a legutóbbi kvízek. A fejlécben látod, hány fogalom megy már biztosan.</p>
+    <h2>6. Extrák</h2>
+    <div class="list">
+      ${step('Napi kihívás', 'Minden nap 5 új kérdés, ugyanaz mindkettőtöknek, így össze is vethetitek az eredményt.')}
+      ${step('Igazi felvételi', 'Valódi feladatok a 2023–2026-os központi felvételikből, a hivatalos javítási útmutató szerinti megoldással.')}
+      ${step('Sorozat és heti cél', 'Ha minden nap gyakorolsz, nő a sorozatod. Heti célként 5 kvízt javaslok.')}
+      ${step('Matricák', 'Ügyes teljesítményért matricákat kapsz. A Matricáim oldalon látod, mi hiányzik még.')}
+      ${step('Párbaj', 'Zsófi és Lili felváltva válaszol ugyanazon a telefonon, a végén kiderül, ki nyert.')}
+      ${step('Hibás kérdés?', 'A válasz után a „Hibásnak tűnik a kérdés?” gombbal jelezheted, és el is küldheted.')}
+    </div>
     <h2>Jó tudni</h2>
     <div class="list">
       ${step('Hova mentődik a haladásod?', 'Ennek a telefonnak (vagy gépnek) a böngészőjébe. Ha másik eszközről vagy privát böngészőablakból nyitod meg, ott elölről kezded. Ne töröld a böngésző adatait, mert azzal a haladás is törlődik.' + (window.claude ? '' : ' Az Eredmények oldalon fájlba is mentheted, és onnan vissza is töltheted.'))}
@@ -563,6 +693,7 @@ function startCards() {
 function renderCard() {
   if (di >= deck.length) {
     const knewIt = deck.filter(c => (P.items['c:' + c.id]?.b || 0) >= 2).length;
+    touchDay(); const freshC = checkBadges({}); save(); showStickers(freshC);
     view.innerHTML = `<section><div class="say"><div class="bob">${felviki('cheer')}</div><div class="fb ok pop"><b class="k">Végigértél!</b><span>${deck.length} kártyát néztél át${knewIt ? `, és ebből ${knewIt} már ment` : ''}. ${pick(['Szuper szorgalmas vagy!', 'Ügyes vagy, {n}!', 'Ez igen, ez kitartás!'])}</span></div></div>
       <div class="row"><button class="btn" id="again" type="button">Újra</button><button class="btn ghost" id="toQuiz" type="button">Jöhet a kvíz</button></div></section>`;
     $('#again').onclick = startCards; $('#toQuiz').onclick = () => startQuiz(false); renderHeader(); return;
@@ -587,23 +718,40 @@ function renderCard() {
 
 // ----- Kvíz -----
 let quiz = null;
-function startQuiz(onlyWrong) {
-  const qs = pickQuestions(QUIZ_LEN, onlyWrong).map(prep);
+function startQuiz(onlyWrong, opts = {}) {
+  const mode = opts.mode || (onlyWrong ? 'wrong' : 'normal');
+  if (opts.cat) catFilter = opts.cat;
+  let qs;
+  if (mode === 'daily') qs = dailyQuestions();
+  else if (mode === 'duel') qs = shuffle(KB.questions.filter(inCat)).slice(0, 10);
+  else qs = pickQuestions(QUIZ_LEN, onlyWrong);
+  qs = qs.map(prep);
   if (!qs.length) { goHome(); return; }
-  quiz = { qs, i: 0, answers: [], streak: 0, best: 0, onlyWrong };
-  go('quiz', renderQ);
+  quiz = { qs, i: 0, answers: [], streak: 0, best: 0, onlyWrong, mode, duel: opts.duel || null };
+  go('quiz', quiz.duel ? renderHandoff : renderQ);
+}
+const duelWho = () => quiz.duel.order[quiz.i % 2];
+function renderHandoff() {
+  const who = duelWho();
+  view.innerHTML = `<section class="handoff">
+    <div class="vs"><div><span class="tag">${esc(quiz.duel.order[0])}</span><b>${quiz.duel.scores[quiz.duel.order[0]]}</b></div><span class="tag">–</span><div><span class="tag">${esc(quiz.duel.order[1])}</span><b>${quiz.duel.scores[quiz.duel.order[1]]}</b></div></div>
+    <div class="bob">${felviki('wave')}</div>
+    <div class="bubble pop"><h1>${esc(who)} következik!</h1><p>${quiz.i + 1}. kérdés a 10-ből. Add át a telefont, és ne súgjatok!</p></div>
+    <button class="btn" id="ready" type="button" style="min-width:220px">Kész vagyok!</button>
+  </section>`;
+  $('#ready').onclick = renderQ;
 }
 function renderQ() {
   const q = quiz.qs[quiz.i];
   const isFill = q.type === 'fill';
   view.innerHTML = `<section>
     <div class="row" style="align-items:center;justify-content:space-between">
-      <span class="small muted" style="font-variant-numeric:tabular-nums">${quiz.i + 1}. kérdés / ${quiz.qs.length}</span>
-      ${quiz.streak >= 2 ? `<span class="streak">${quiz.streak} jó zsinórban!</span>` : ''}
+      <span class="small muted" style="font-variant-numeric:tabular-nums">${quiz.duel ? esc(duelWho()) + ' · ' : quiz.mode === 'daily' ? 'Napi kihívás · ' : ''}${quiz.i + 1}. kérdés / ${quiz.qs.length}</span>
+      ${!quiz.duel && quiz.streak >= 2 ? `<span class="streak">${quiz.streak} jó zsinórban!</span>` : ''}
     </div>
     <div class="progress"><i style="width:${100 * quiz.i / quiz.qs.length}%"></i></div>
     <div class="q">
-      <span class="tag">${esc(catName[q.cat])} · ${isFill ? 'Írd be a választ' : 'Válaszd ki'}</span>
+      <span class="tag">${q.src ? `<b style="color:var(--ink)">Igazi felvételi</b> · ${esc(q.src)}` : esc(catName[q.cat])} · ${isFill ? 'Írd be a választ' : 'Válaszd ki'}</span>
       <div class="prompt">${esc(q.prompt)}</div>
       ${q.def ? `<p style="margin:0" class="hl-box"><span class="hl">${esc(q.def)}</span></p>` : ''}
       ${isFill
@@ -628,25 +776,31 @@ function answer(given, ok) {
   const q = quiz.qs[quiz.i];
   quiz.answers.push({ q, given, ok });
   quiz.streak = ok ? quiz.streak + 1 : 0; quiz.best = Math.max(quiz.best, quiz.streak);
-  mark(q.id, ok);
+  if (quiz.duel) { const who = duelWho(); markFor(who, q.id, ok); if (ok) quiz.duel.scores[who]++; } else mark(q.id, ok);
   const right = q.type === 'fill' ? q.accept.join(' / ') : q.correct;
-  const st = ok ? STREAK[quiz.streak] : null;
+  const st = ok && !quiz.duel ? STREAK[quiz.streak] : null;
   if (st && quiz.streak >= 5) confetti();
   $('#fb').innerHTML = `<div class="say"><div class="${ok ? 'bob' : ''}">${felviki(ok ? (st ? 'cheer' : 'happy') : 'comfort')}</div>
     <div class="fb ${ok ? 'ok' : 'bad'} pop" role="status">
-      <b class="k">${ok ? (st ? nm(st) : pick(PRAISE)) : pick(ENCOURAGE)}</b>
+      <b class="k">${ok ? (st ? nm(st) : pick(quiz.duel ? PRAISE.filter(x => !x.includes('{n}')) : PRAISE)) : pick(ENCOURAGE)}</b>
       ${ok ? '' : `<span>Helyes válasz: <b class="hl">${esc(right)}</b></span>`}
       <span>${esc(q.expl)}</span></div></div>
-    <button class="btn" id="next" type="button" style="margin-top:12px;width:100%">${quiz.i + 1 < quiz.qs.length ? 'Következő →' : 'Lássuk az eredményt!'}</button>`;
+    <button class="linkbtn" id="report" type="button">Hibásnak tűnik a kérdés? Jelezd!</button>
+    <button class="btn" id="next" type="button" style="margin-top:6px;width:100%">${quiz.i + 1 < quiz.qs.length ? (quiz.duel ? 'Tovább →' : 'Következő →') : 'Lássuk az eredményt!'}</button>`;
+  $('#report').onclick = () => reportQuestion(q);
   const nx = $('#next'); nx.focus({ preventScroll: true });
   try { $('#fb').scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'nearest' }); } catch (e) {}
-  nx.onclick = () => { quiz.i++; if (quiz.i < quiz.qs.length) renderQ(); else finishQuiz(); };
+  nx.onclick = () => { quiz.i++; if (quiz.i < quiz.qs.length) (quiz.duel ? renderHandoff : renderQ)(); else (quiz.duel ? finishDuel : finishQuiz)(); };
 }
 function finishQuiz() {
   const s = quiz.answers.filter(a => a.ok).length, n = quiz.answers.length;
   const prev = [...P.sessions].reverse().find(x => x.w === (quiz.onlyWrong ? 1 : 0) && x.c === catFilter);
-  P.sessions.push({ d: Date.now(), s, n, c: catFilter, w: quiz.onlyWrong ? 1 : 0 }); save();
+  P.sessions.push({ d: Date.now(), s, n, c: catFilter, w: quiz.onlyWrong ? 1 : 0, m: quiz.mode });
+  touchDay();
   const pct = Math.round(100 * s / n);
+  if (quiz.mode === 'daily' && !(P.daily ||= {})[dayKey()]) P.daily[dayKey()] = { s, n };
+  const fresh = checkBadges({ quiz: true, pct, n, best: quiz.best, mode: quiz.mode, cat: catFilter });
+  save();
   const msg = resultPraise(pct, prev ? Math.round(100 * prev.s / prev.n) : null);
   const mood = pct >= 80 ? 'cheer' : pct >= 50 ? 'happy' : 'comfort';
   current = 'result'; renderHeader();
@@ -659,7 +813,7 @@ function finishQuiz() {
     <div class="list">${quiz.answers.map((a, k) => {
       const right = a.q.type === 'fill' ? a.q.accept.join(' / ') : a.q.correct;
       return `<div class="item ${a.ok ? 'okk' : 'badd'}">
-        <span class="tag">${k + 1}. · ${a.ok ? 'Helyes' : 'Hibás'}</span>
+        <span class="tag">${k + 1}. · ${a.ok ? 'Helyes' : 'Hibás'}${a.q.src ? ' · Igazi felvételi, ' + esc(a.q.src) : ''}</span>
         <b>${esc(a.q.prompt)}</b>${a.q.def ? `<span class="small">${esc(a.q.def)}</span>` : ''}
         <span>Te: <b>${esc(a.given)}</b>${a.ok ? '' : ` · Helyes: <b>${esc(right)}</b>`}</span>
         <span class="small muted">${esc(a.q.expl)}</span></div>`; }).join('')}</div>
@@ -668,6 +822,42 @@ function finishQuiz() {
   $('#wrongs').onclick = () => startQuiz(true);
   window.scrollTo({ top: 0 }); renderHeader();
   if (pct >= 80) setTimeout(confetti, 250);
+  showStickers(fresh);
+}
+
+function finishDuel() {
+  const [a, b] = quiz.duel.order, sa = quiz.duel.scores[a], sb = quiz.duel.scores[b];
+  const winner = sa === sb ? null : (sa > sb ? a : b);
+  [a, b].forEach(n => { const T = (ALL.players[n] ||= blankP()); (T.sessions ||= []).push({ d: Date.now(), s: quiz.duel.scores[n], n: quiz.answers.filter((x, k) => quiz.duel.order[k % 2] === n).length, c: catFilter, w: 2, m: 'duel' }); touchDay(T); });
+  const fresh = winner ? checkBadges({ duelWin: true }, ALL.players[winner]) : [];
+  save();
+  current = 'result'; renderHeader();
+  const msg = winner ? `${winner} nyert! Gratulálok! ${winner === a ? b : a}, legközelebb visszavághatsz!` : 'Döntetlen! Mindketten nagyon ügyesek voltatok!';
+  view.innerHTML = `<section>
+    <div class="vs"><div><span class="tag">${esc(a)}</span><b class="pop">${sa}</b></div><span class="tag">–</span><div><span class="tag">${esc(b)}</span><b class="pop">${sb}</b></div></div>
+    <div class="say"><div class="bob">${felviki('cheer')}</div><div class="fb ok pop"><p class="praise">${esc(msg)}</p></div></div>
+    <div class="scene" aria-hidden="true">${stick.cheer('#ffd94a')}${stick.flag('#33b97f')}${stick.jump('#ff7a9c')}</div>
+    <div class="row"><button class="btn" id="again" type="button">Visszavágó!</button><button class="btn ghost" id="toHome" type="button">Kezdőlap</button></div>
+    <h2>Nézzük meg együtt!</h2>
+    <div class="list">${quiz.answers.map((x, k) => { const right = x.q.type === 'fill' ? x.q.accept.join(' / ') : x.q.correct; return `<div class="item ${x.ok ? 'okk' : 'badd'}"><span class="tag">${k + 1}. · ${esc(quiz.duel.order[k % 2])} · ${x.ok ? 'Helyes' : 'Hibás'}</span><b>${esc(x.q.prompt)}</b>${x.q.def ? `<span class="small">${esc(x.q.def)}</span>` : ''}<span>Válasz: <b>${esc(x.given)}</b>${x.ok ? '' : ` · Helyes: <b>${esc(right)}</b>`}</span><span class="small muted">${esc(x.q.expl)}</span></div>`; }).join('')}</div>
+  </section>`;
+  $('#again').onclick = () => startQuiz(false, { mode: 'duel', duel: { order: [b, a], scores: { [a]: 0, [b]: 0 } } });
+  $('#toHome').onclick = () => goHome();
+  window.scrollTo({ top: 0 }); setTimeout(confetti, 250);
+  showStickers(fresh, winner);
+}
+function startDuel() {
+  const other = PLAYERS.find(n => n !== PLAYER);
+  const m = modal(`<div class="q" style="max-width:460px;width:100%"><div class="say"><div>${felviki('wow')}</div><div class="fb" style="background:#fff"><b class="k" style="color:var(--ink)">Párbaj!</b><span>${esc(PLAYER)} és ${esc(other)} felváltva kap 5-5 kérdést ugyanazon a telefonon. Aki több jót válaszol, nyer! Témakör: ${esc(catFilter === 'all' ? 'minden' : catName[catFilter])}.</span></div></div>
+    <div class="row"><button class="btn ghost" id="mNo" type="button">Mégse</button><button class="btn" id="mGo" type="button">Kezdjük!</button></div></div>`);
+  m.querySelector('#mNo').onclick = closeModal;
+  m.querySelector('#mGo').onclick = () => { closeModal(); startQuiz(false, { mode: 'duel', duel: { order: [PLAYER, other], scores: { [PLAYER]: 0, [other]: 0 } } }); };
+}
+function renderBadges() {
+  const got = P.badges || {};
+  view.innerHTML = `<section><h1>${esc(PLAYER)} matricái</h1>
+    <div class="say"><div class="bob">${felviki('happy')}</div><div class="fb ok pop"><span>${Object.keys(got).length} matricát gyűjtöttél a ${BADGES.length}-ből. ${Object.keys(got).length ? 'Szuper gyűjtemény!' : 'Az első kvíz után már jön is az első!'}</span></div></div>
+    <div class="stickers">${BADGES.map(b => stickerHtml(b, got[b.id])).join('')}</div></section>`;
 }
 
 // ----- Eredmények -----
@@ -686,7 +876,7 @@ function statsBlock(data) {
     <h2>Legtöbbször rontott</h2>
     ${missed.length ? `<div class="list">${missed.map(q => `<div class="item"><span class="tag">${esc(cardById[q.card]?.term)} · ${data.items[q.id].w}× rossz</span><span>${esc(q.type === 'mcauto' ? 'Melyik fogalom: ' + q.q : q.q)}</span><span class="small">Helyes: <b>${esc(q.type === 'mcauto' ? cardById[q.card]?.term : q.type === 'fill' ? q.accept.join(' / ') : q.options[q.answer])}</b></span></div>`).join('')}</div>` : '<p class="muted">Még nincs rontott kérdés.</p>'}
     <h2>Legutóbbi kvízek</h2>
-    ${sess.length ? `<div class="list">${sess.map(x => `<div class="bar"><span>${new Date(x.d).toLocaleString('hu-HU', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}${x.w ? ' · hibák' : ''}</span><div class="progress"><i style="width:${100 * x.s / x.n}%"></i></div><span>${x.s}/${x.n}</span></div>`).join('')}</div>` : '<p class="muted">Még nem volt kvíz.</p>'}`;
+    ${sess.length ? `<div class="list">${sess.map(x => `<div class="bar"><span>${new Date(x.d).toLocaleString('hu-HU', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}${x.m === 'duel' ? ' · párbaj' : x.m === 'daily' ? ' · napi kihívás' : x.w ? ' · hibák' : ''}</span><div class="progress"><i style="width:${100 * x.s / x.n}%"></i></div><span>${x.s}/${x.n}</span></div>`).join('')}</div>` : '<p class="muted">Még nem volt kvíz.</p>'}`;
 }
 async function renderStats() {
   let tr = 0, tw = 0; Object.entries(P.items).forEach(([k, x]) => { if (!k.startsWith('c:')) { tr += x.r; tw += x.w; } });
@@ -697,7 +887,10 @@ async function renderStats() {
     : `Eddig ${tr} jó válaszod van. Minden gyakorlással jobb leszel, és én itt vagyok, hogy segítsek!`;
   view.innerHTML = `<section><h1>${esc(PLAYER)} eredményei</h1>
     <div class="say"><div class="bob">${felviki(acc != null && acc >= 80 ? 'cheer' : 'happy')}</div><div class="fb ok pop"><span>${statMsg}</span></div></div>
-    ${statsBlock(P)}<div id="others"></div>
+    <button class="btn" id="shareRes" type="button">Eredményem elküldése</button><div id="shareMsg"></div>
+    ${statsBlock(P)}
+    ${(P.reports || []).length ? `<h2>Jelzett kérdések</h2><div class="list">${P.reports.slice(-10).reverse().map(r => `<div class="item"><span class="tag">${esc(r.src || 'kérdés')}</span><span>${esc(r.q)}</span>${r.note ? `<span class="small muted">${esc(r.note)}</span>` : ''}</div>`).join('')}</div>` : ''}
+    <div id="others"></div>
     ${window.claude ? '' : `<h2>Biztonsági mentés</h2>
     <p class="small muted" style="margin:0">${esc(PLAYER)} haladása ebben a böngészőben tárolódik. Időnként mentsd el fájlba, és ha új telefonra váltasz vagy törlődnek a böngészőadatok, töltsd vissza.</p>
     <div class="row"><button class="btn plain" id="bkSave" type="button">Mentés fájlba</button><label class="btn plain" for="bkLoad" style="text-align:center">Visszatöltés fájlból</label><input type="file" id="bkLoad" accept="application/json,.json" hidden></div>
@@ -723,6 +916,7 @@ async function renderStats() {
       } catch (err) { $('#bkMsg').innerHTML = '<div class="fb bad"><span>Ez nem a felvételi gyakorló mentésfájlja. Válaszd ki a „felviki-….json” (vagy régebbi „felveteli-haladas-….json”) fájlt.</span></div>'; }
     };
   }
+  $('#shareRes').onclick = async () => { const r = await shareText(summaryText(), 'FelViki eredmény'); if (r === 'copied') $('#shareMsg').innerHTML = '<p class="small muted">Kimásoltam, most beillesztheted egy üzenetbe.</p>'; };
   $('#reset').onclick = () => {
     $('#resetConfirm').innerHTML = `<div class="fb bad"><span>Biztosan törlöd ${esc(PLAYER)} összes eredményét? Ez nem vonható vissza.</span><div class="row"><button class="btn plain" id="rNo" type="button">Mégse</button><button class="btn" id="rYes" type="button">Törlés</button></div></div>`;
     $('#rNo').onclick = () => $('#resetConfirm').innerHTML = '';
