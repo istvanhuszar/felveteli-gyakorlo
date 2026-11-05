@@ -1,0 +1,32 @@
+{
+  "name": "Felvételi gyakorló",
+  "short_name": "Felvételi",
+  "description": "Magyar felvételi gyakorló: tanulókártyák és kvíz magyarázatokkal.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f3f5fb",
+  "theme_color": "#2f4bd8",
+  "lang": "hu",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-maskable.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

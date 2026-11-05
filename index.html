@@ -1,0 +1,479 @@
+<!doctype html>
+<html lang="hu">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#2f4bd8">
+<meta name="description" content="Magyar felvételi gyakorló: tanulókártyák és kvíz magyarázatokkal.">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Felvételi">
+<style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,-apple-system,"Segoe UI",sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
+</head>
+<body>
+<title>Zsófi felvételi gyakorló</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&display=swap">
+<style>
+/* Layout: egyoszlopos, telefonra szabott "füzet" – felül sticky fejléc, alatta nézetek (kezdő, kártya, kvíz, eredmény, tudástár). */
+:root{
+  --bg:#f3f5fb; --paper:#ffffff; --ink:#18213d; --muted:#5d6684; --line:#dfe4f2;
+  --accent:#2f4bd8; --accent-ink:#ffffff; --mark:#ffe36e; --mark-ink:#3b3000;
+  --ok:#1f8a4c; --ok-bg:#e3f5ea; --bad:#c2372f; --bad-bg:#fbe5e3;
+  --display:"Bricolage Grotesque",ui-rounded,"Segoe UI",system-ui,sans-serif;
+  --body:"Atkinson Hyperlegible",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --r:14px;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#10142a; --paper:#1a2040; --ink:#e8ebf8; --muted:#a2a9c8; --line:#2c3460;
+  --accent:#8ea2ff; --accent-ink:#0d1230; --mark:#e6c94a; --mark-ink:#241d00;
+  --ok:#5fd394; --ok-bg:#163527; --bad:#ff8a80; --bad-bg:#3e1d1f; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#10142a; --paper:#1a2040; --ink:#e8ebf8; --muted:#a2a9c8; --line:#2c3460;
+  --accent:#8ea2ff; --accent-ink:#0d1230; --mark:#e6c94a; --mark-ink:#241d00;
+  --ok:#5fd394; --ok-bg:#163527; --bad:#ff8a80; --bad-bg:#3e1d1f; color-scheme:dark}
+*{box-sizing:border-box}
+html,body{min-height:100%}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:17px;line-height:1.5}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--bg)}
+.wrap{max-width:640px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:0 40px}
+header{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);padding-block:12px 10px;display:flex;align-items:center;gap:12px;border-bottom:1px solid var(--line)}
+header .home{font-family:var(--display);font-weight:800;font-size:20px;letter-spacing:-.01em;background:none;border:0;color:var(--ink);padding:0;cursor:pointer;text-align:left;min-width:0}
+header .home span{background:linear-gradient(transparent 55%,var(--mark) 55%);color:inherit}
+header .right{margin-left:auto;font-size:14px;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+h1,h2,h3{font-family:var(--display);line-height:1.15;text-wrap:balance;margin:0}
+h1{font-size:28px;font-weight:800}
+h2{font-size:21px;font-weight:800}
+.muted{color:var(--muted)}
+.small{font-size:14px}
+section{display:flex;flex-direction:column;gap:16px;padding-top:18px}
+.btn{font:inherit;font-weight:700;border-radius:12px;border:2px solid var(--accent);background:var(--accent);color:var(--accent-ink);padding:12px 16px;cursor:pointer;min-height:48px}
+.btn.ghost{background:transparent;color:var(--accent)}
+.btn.plain{border-color:var(--line);background:var(--paper);color:var(--ink)}
+.btn:disabled{opacity:.45;cursor:default}
+.btn:focus-visible,.opt:focus-visible,.chip:focus-visible,input:focus-visible{outline:3px solid var(--mark);outline-offset:2px}
+.row{display:flex;gap:10px;flex-wrap:wrap}
+.row>.btn{flex:1 1 140px}
+.tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.tile{background:var(--paper);border:1px solid var(--line);border-radius:var(--r);padding:16px;text-align:left;font:inherit;color:inherit;cursor:pointer;display:flex;flex-direction:column;gap:6px;min-height:118px}
+.tile b{font-family:var(--display);font-size:19px}
+.tile .small{color:var(--muted)}
+.tile.main{grid-column:1/-1;background:var(--accent);color:var(--accent-ink);border-color:var(--accent);min-height:0}
+.tile.main .small{color:inherit;opacity:.85}
+.stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.stat{background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+.stat b{display:block;font-family:var(--display);font-size:24px;font-variant-numeric:tabular-nums}
+.stat span{font-size:13px;color:var(--muted)}
+.chips{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;scrollbar-width:thin}
+.chip{flex:0 0 auto;font:inherit;font-size:14px;border:1.5px solid var(--line);background:var(--paper);color:var(--ink);border-radius:999px;padding:6px 12px;cursor:pointer}
+.chip[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.progress{height:8px;background:var(--line);border-radius:99px;overflow:hidden}
+.progress i{display:block;height:100%;background:var(--accent);border-radius:99px;transition:width .3s}
+.card{perspective:1200px;min-height:300px;cursor:pointer}
+.card .inner{position:relative;min-height:300px;transition:transform .45s;transform-style:preserve-3d}
+.card.flipped .inner{transform:rotateY(180deg)}
+.face{position:absolute;inset:0;backface-visibility:hidden;-webkit-backface-visibility:hidden;background:var(--paper);border:1px solid var(--line);border-radius:18px;padding:22px;display:flex;flex-direction:column;gap:12px;overflow:auto;box-shadow:0 1px 0 var(--line),0 6px 0 -3px var(--paper),0 7px 0 -3px var(--line)}
+.face.front{justify-content:center;align-items:center;text-align:center}
+.face.front h2{font-size:30px}
+.face.back{transform:rotateY(180deg)}
+.tag{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:700}
+.hl{background:var(--mark);color:var(--mark-ink);padding:0 4px;border-radius:4px}
+.q{background:var(--paper);border:1px solid var(--line);border-radius:18px;padding:18px;display:flex;flex-direction:column;gap:14px}
+.q .prompt{font-size:19px;font-weight:700}
+.opts{display:flex;flex-direction:column;gap:10px}
+.opt{font:inherit;text-align:left;background:var(--bg);color:var(--ink);border:2px solid var(--line);border-radius:12px;padding:12px 14px;cursor:pointer;min-height:48px}
+.opt.right{border-color:var(--ok);background:var(--ok-bg)}
+.opt.wrong{border-color:var(--bad);background:var(--bad-bg)}
+.opt:disabled{cursor:default}
+input[type=text]{font:inherit;font-size:18px;width:100%;padding:12px 14px;border:2px solid var(--line);border-radius:12px;background:var(--bg);color:var(--ink)}
+.fb{border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:4px}
+.fb.ok{background:var(--ok-bg);color:var(--ink);border-left:5px solid var(--ok)}
+.fb.bad{background:var(--bad-bg);color:var(--ink);border-left:5px solid var(--bad)}
+.fb b.k{color:var(--ok)} .fb.bad b.k{color:var(--bad)}
+.score{font-family:var(--display);font-size:56px;font-weight:800;line-height:1;font-variant-numeric:tabular-nums}
+.list{display:flex;flex-direction:column;gap:10px}
+.item{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:6px}
+.item.okk{border-left:5px solid var(--ok)} .item.badd{border-left:5px solid var(--bad)}
+.bar{display:grid;grid-template-columns:minmax(0,1fr) 110px 44px;gap:10px;align-items:center;font-size:15px}
+.bar .progress i{background:var(--ok)}
+.bar span:last-child{text-align:right;font-variant-numeric:tabular-nums;color:var(--muted)}
+.streak{display:inline-flex;align-items:center;gap:6px;background:var(--mark);color:var(--mark-ink);font-weight:700;border-radius:999px;padding:2px 10px;font-size:14px}
+details.kb{background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+details.kb summary{font-weight:700;cursor:pointer}
+details.kb p{margin:8px 0 0}
+.note{font-size:14px;color:var(--muted);border:1px dashed var(--line);border-radius:12px;padding:10px 12px}
+@media (prefers-reduced-motion: reduce){.card .inner,.progress i{transition:none}}
+@media (max-width:380px){.tiles{grid-template-columns:1fr}}
+</style>
+
+<div class="wrap">
+  <header>
+    <button class="home" id="homeBtn" type="button"><span>Felvételi</span> gyakorló</button>
+    <div class="right" id="hdrRight"></div>
+  </header>
+  <main id="view"><section><h1>Betöltés…</h1><p class="muted">A tudástár töltődik.</p></section></main>
+</div>
+
+<script>
+(() => {
+const $ = (s, el = document) => el.querySelector(s);
+const view = $('#view');
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const shuffle = a => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+const QUIZ_LEN = 10;
+const LS_KEY = 'zsofi-felveteli-progress-v1';
+
+let KB = null, cardById = {}, catName = {};
+let catFilter = 'all';
+let P = { items: {}, sessions: [], updated: 0 };   // haladás
+let db = null, userApi = null, myId = null, isOwner = false, dbWritable = true, saveTimer = null;
+
+// ---------- Haladás ----------
+const it = id => (P.items[id] ||= { b: 0, r: 0, w: 0, t: 0 });   // b: doboz (0 = új, 1 = gyakorolni, ... 5 = tudja)
+function mark(id, correct) {
+  const x = it(id);
+  if (correct) { x.r++; x.b = Math.min(5, (x.b || 1) + 1); } else { x.w++; x.b = 1; }
+  x.t = Date.now(); save();
+}
+function loadLocal() { try { const s = localStorage.getItem(LS_KEY); if (s) P = JSON.parse(s); } catch (e) {} P.items ||= {}; P.sessions ||= []; }
+function save() {
+  P.updated = Date.now();
+  try { localStorage.setItem(LS_KEY, JSON.stringify(P)); } catch (e) {}
+  if (db && myId && dbWritable) { clearTimeout(saveTimer); saveTimer = setTimeout(pushRemote, 1200); }
+}
+async function pushRemote() {
+  try { await db.doc('progress/' + myId).set({ items: P.items, sessions: P.sessions.slice(-60), updated: P.updated }); }
+  catch (e) { if (e && e.code === 'invalid_argument') dbWritable = false; }
+  renderHeader();
+}
+async function initCloud() {
+  try {
+    const [d, u] = await Promise.all([window.claude?.use?.('db'), window.claude?.use?.('user')]);
+    db = d; userApi = u;
+    if (!db || !userApi) { renderHeader(); return; }
+    myId = await userApi.id(); isOwner = await userApi.isOwner();
+    const w = await userApi.can?.('data.write'); if (w === false) dbWritable = false;
+    if (myId) {
+      const snap = await db.doc('progress/' + myId).get();
+      const r = snap.exists ? snap.data() : null;
+      if (r && (r.updated || 0) > (P.updated || 0)) { P = { items: r.items || {}, sessions: r.sessions || [], updated: r.updated }; try { localStorage.setItem(LS_KEY, JSON.stringify(P)); } catch (e) {} }
+      else if (Object.keys(P.items).length && dbWritable) pushRemote();
+    }
+  } catch (e) { db = null; }
+  renderHeader(); if (current === 'home' && KB) renderHome();
+}
+
+// ---------- Kiválasztás ----------
+const inCat = x => catFilter === 'all' || x.cat === catFilter;
+function priority(id) { const x = P.items[id]; if (!x || !x.b) return 2; return x.b === 1 ? 0 : 1 + x.b; }  // 0 hibás, 2 új, 3+ tudott
+function pickQuestions(n, onlyWrong) {
+  let pool = KB.questions.filter(inCat);
+  if (onlyWrong) pool = pool.filter(q => P.items[q.id]?.b === 1);
+  const groups = {};
+  shuffle(pool).forEach(q => (groups[priority(q.id)] ||= []).push(q));
+  const out = []; const usedCards = new Set();
+  for (const k of Object.keys(groups).sort((a, b) => a - b)) for (const q of groups[k]) {
+    if (out.length >= n) break;
+    if (usedCards.has(q.card) && pool.length > n * 2) continue;   // ne legyen két kérdés ugyanarról
+    out.push(q); usedCards.add(q.card);
+  }
+  return shuffle(out);
+}
+function buildAuto(q) {
+  const c = cardById[q.card];
+  const others = shuffle(KB.cards.filter(o => o.cat === c.cat && o.id !== c.id)).slice(0, 3).map(o => o.term);
+  return { ...q, prompt: 'Melyik fogalom meghatározása ez?', def: q.q, options: shuffle([c.term, ...others]), correct: c.term };
+}
+function prep(q) {
+  if (q.type === 'mcauto') return buildAuto(q);
+  if (q.type === 'mc') return { ...q, prompt: q.q, options: shuffle(q.options), correct: q.options[q.answer] };
+  return { ...q, prompt: q.q };
+}
+const norm = s => s.trim().replace(/\s+/g, ' ').toLocaleLowerCase('hu');
+const checkFill = (q, v) => q.accept.some(a => norm(a) === norm(v));
+
+// ---------- Nézetek ----------
+let current = 'home';
+function go(name, fn) { current = name; fn(); window.scrollTo({ top: 0 }); }
+function renderHeader() {
+  const known = KB ? KB.cards.filter(c => (P.items['c:' + c.id]?.b || 0) >= 3).length : 0;
+  $('#hdrRight').textContent = KB ? `${known}/${KB.cards.length} fogalom megy` : '';
+}
+function chipsHtml() {
+  const all = [{ id: 'all', name: 'Minden' }, ...KB.categories];
+  return `<div class="chips" role="group" aria-label="Témakör">${all.map(c => `<button class="chip" type="button" data-cat="${c.id}" aria-pressed="${catFilter === c.id}">${esc(c.name)}</button>`).join('')}</div>`;
+}
+function bindChips(rerender) { view.querySelectorAll('.chip').forEach(b => b.onclick = () => { catFilter = b.dataset.cat; rerender(); }); }
+
+function renderHome() {
+  renderHeader();
+  const qs = KB.questions.filter(inCat);
+  const wrong = qs.filter(q => P.items[q.id]?.b === 1).length;
+  const answered = qs.filter(q => P.items[q.id]).length;
+  const last = P.sessions[P.sessions.length - 1];
+  view.innerHTML = `<section>
+    <div><h1>Szia, Zsófi!</h1><p class="muted" style="margin:6px 0 0">Válassz témakört, aztán tanulj kártyákkal vagy oldj meg egy kvízt.</p></div>
+    ${chipsHtml()}
+    <div class="stats">
+      <div class="stat"><b>${answered}/${qs.length}</b><span>kérdés kipróbálva</span></div>
+      <div class="stat"><b>${wrong}</b><span>gyakorolandó hiba</span></div>
+      <div class="stat"><b>${last ? Math.round(100 * last.s / last.n) + '%' : '–'}</b><span>legutóbbi kvíz</span></div>
+    </div>
+    <div class="tiles">
+      <button class="tile main" type="button" id="tQuiz"><b>Kvíz indítása</b><span class="small">${QUIZ_LEN} kérdés: feleletválasztós és kitöltős vegyesen, a hibáid előre kerülnek</span></button>
+      <button class="tile" type="button" id="tCards"><b>Kártyák</b><span class="small">Fordítsd meg, és döntsd el, tudtad-e</span></button>
+      <button class="tile" type="button" id="tWrong" ${wrong ? '' : 'disabled'}><b>Hibáim</b><span class="small">${wrong ? wrong + ' kérdés újra' : 'Most nincs hibás kérdés'}</span></button>
+      <button class="tile" type="button" id="tStats"><b>Eredmények</b><span class="small">Témakörönként, kvízenként</span></button>
+      <button class="tile" type="button" id="tKb"><b>Tudástár</b><span class="small">${KB.cards.length} fogalom, ${KB.questions.length} kérdés</span></button>
+      <button class="tile" type="button" id="tHelp" style="grid-column:1/-1;min-height:0"><b>Hogyan működik?</b><span class="small">Rövid útmutató az apphoz</span></button>
+    </div>
+    ${cloudNote()}
+  </section>`;
+  bindChips(renderHome);
+  $('#tQuiz').onclick = () => startQuiz(false);
+  $('#tWrong').onclick = () => startQuiz(true);
+  $('#tCards').onclick = () => go('cards', startCards);
+  $('#tStats').onclick = () => go('stats', renderStats);
+  $('#tKb').onclick = () => go('kb', renderKb);
+  $('#tHelp').onclick = () => go('help', renderHelp);
+}
+
+// ----- Útmutató -----
+function renderHelp() {
+  const step = (t, b) => `<div class="item"><b>${t}</b><span>${b}</span></div>`;
+  view.innerHTML = `<section>
+    <h1>Hogyan működik?</h1>
+    <p class="muted" style="margin:0">Ez az app a magyar felvételire készít fel: a fogalmakat kártyákon tanulod meg, a kvízzel pedig kipróbálod, mennyire mennek.</p>
+    <h2>1. Válassz témakört</h2>
+    <p style="margin:0">A kezdőlap tetején lévő gombokkal szűkítheted a témát (pl. Verstan, Mondattan). A „Minden” az összes témát keveri. A választás a kártyákra, a kvízre és a tudástárra is vonatkozik.</p>
+    <h2>2. Tanulj kártyákkal</h2>
+    <div class="list">
+      ${step('Nézd meg a fogalmat', 'A kártya elején a fogalom neve áll. Próbáld fejben elmondani, mit jelent.')}
+      ${step('Fordítsd meg', 'Koppints a kártyára: a hátoldalon a meghatározás és egy példa van.')}
+      ${step('Légy őszinte magaddal', '„Tudtam”, ha jól mondtad, „Még nem megy”, ha nem. Amit nem tudtál, az legközelebb hamarabb előjön.')}
+    </div>
+    <h2>3. Oldj meg kvízt</h2>
+    <div class="list">
+      ${step('10 kérdés vegyesen', 'Van, ahol a négy lehetőség közül kell választanod, és van, ahol be kell írnod a választ.')}
+      ${step('Beírós kérdések', 'A választ pontosan kell beírni, helyes ékezetekkel, mint a felvételin. A kis- és nagybetű nem számít.')}
+      ${step('Azonnali visszajelzés', 'Minden válasz után látod, jó volt-e, mi a helyes megoldás, és rövid magyarázatot is kapsz.')}
+      ${step('Kiértékelés', 'A végén megkapod a pontszámodat és az összes válaszodat a magyarázatokkal együtt.')}
+    </div>
+    <h2>4. Gyakorold a hibáidat</h2>
+    <p style="margin:0">Amit elrontottál, az a „Hibáim” gombbal újra előjön. Ha egy kérdésre többször jól válaszolsz, kikerül a hibák közül. Az új kvízekben is a rontott kérdések jönnek először.</p>
+    <h2>5. Nézd meg, hol tartasz</h2>
+    <p style="margin:0">Az „Eredmények” oldalon témakörönként látod, hány százalékban válaszoltál jól, melyik kérdéseket rontottad a legtöbbször, és hogyan sikerültek a legutóbbi kvízek. A fejlécben látod, hány fogalom megy már biztosan.</p>
+    <h2>Jó tudni</h2>
+    <div class="list">
+      ${step('Hova mentődik a haladásod?', 'Ennek a telefonnak (vagy gépnek) a böngészőjébe. Ha másik eszközről vagy privát böngészőablakból nyitod meg, ott elölről kezded. Ne töröld a böngésző adatait, mert azzal a haladás is törlődik.' + (window.claude ? '' : ' Az Eredmények oldalon fájlba is mentheted, és onnan vissza is töltheted.'))}
+      ${window.claude ? '' : step('Tedd ki a kezdőképernyőre', 'Chrome-ban: menü (⋮) → „Alkalmazás telepítése” vagy „Hozzáadás a kezdőképernyőhöz”. iPhone-on Safariban: Megosztás → „Főképernyőhöz adás”. Így appként indul, és internet nélkül is működik.')}
+      ${step('Új anyag', 'A tudástár bővül. Ha új fogalmak kerülnek bele, a kártyák és a kérdések között automatikusan megjelennek, a haladásod megmarad.')}
+      ${step('Ha hibát találsz', 'Ha szerinted egy kérdés vagy válasz nem jó, írd fel, és szólj, hogy kijavíthassuk.')}
+    </div>
+    <button class="btn" type="button" id="helpBack">Kezdjük!</button>
+  </section>`;
+  $('#helpBack').onclick = () => go('home', renderHome);
+}
+function cloudNote() {
+  if (db && myId && dbWritable) return '';
+  if (db && myId && !dbWritable) return `<p class="note">Az eredményeid ezen a készüléken mentődnek. Ahhoz, hogy a felhőbe is mentődjenek, kérj szerkesztési (Contributor) jogot a megosztásnál.</p>`;
+  return `<p class="note">Az eredményeid ezen a készüléken, a böngészőben mentődnek.</p>`;
+}
+
+// ----- Kártyák -----
+let deck = [], di = 0;
+function startCards() {
+  deck = KB.cards.filter(inCat);
+  deck = shuffle(deck).sort((a, b) => priority('c:' + a.id) - priority('c:' + b.id));
+  di = 0; renderCard();
+}
+function renderCard() {
+  if (di >= deck.length) {
+    view.innerHTML = `<section><h1>Végére értél!</h1><p class="muted">${deck.length} kártyát néztél át.</p>
+      <div class="row"><button class="btn" id="again" type="button">Újra</button><button class="btn ghost" id="toQuiz" type="button">Jöhet a kvíz</button></div></section>`;
+    $('#again').onclick = startCards; $('#toQuiz').onclick = () => startQuiz(false); renderHeader(); return;
+  }
+  const c = deck[di];
+  view.innerHTML = `<section>
+    <div class="row" style="align-items:center;justify-content:space-between"><span class="tag">${esc(catName[c.cat])}</span><span class="small muted" style="font-variant-numeric:tabular-nums">${di + 1} / ${deck.length}</span></div>
+    <div class="progress"><i style="width:${100 * di / deck.length}%"></i></div>
+    <div class="card" id="card" role="button" tabindex="0" aria-label="Kártya megfordítása">
+      <div class="inner">
+        <div class="face front"><span class="tag">Mit jelent?</span><h2>${esc(c.term)}</h2><span class="small muted">Koppints a megfordításhoz</span></div>
+        <div class="face back"><span class="tag">${esc(c.term)}</span><p style="margin:0">${esc(c.def)}</p>${c.use ? `<p class="muted" style="margin:0">${esc(c.use)}</p>` : ''}</div>
+      </div>
+    </div>
+    <div class="row"><button class="btn plain" id="no" type="button">Még nem megy</button><button class="btn" id="yes" type="button">Tudtam</button></div>
+  </section>`;
+  const card = $('#card'); const flip = () => card.classList.toggle('flipped');
+  card.onclick = flip; card.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); flip(); } };
+  $('#no').onclick = () => { mark('c:' + c.id, false); di++; renderCard(); };
+  $('#yes').onclick = () => { mark('c:' + c.id, true); di++; renderCard(); };
+}
+
+// ----- Kvíz -----
+let quiz = null;
+function startQuiz(onlyWrong) {
+  const qs = pickQuestions(QUIZ_LEN, onlyWrong).map(prep);
+  if (!qs.length) { go('home', renderHome); return; }
+  quiz = { qs, i: 0, answers: [], streak: 0, best: 0, onlyWrong };
+  go('quiz', renderQ);
+}
+function renderQ() {
+  const q = quiz.qs[quiz.i];
+  const isFill = q.type === 'fill';
+  view.innerHTML = `<section>
+    <div class="row" style="align-items:center;justify-content:space-between">
+      <span class="small muted" style="font-variant-numeric:tabular-nums">${quiz.i + 1}. kérdés / ${quiz.qs.length}</span>
+      ${quiz.streak >= 2 ? `<span class="streak">${quiz.streak} jó egymás után</span>` : ''}
+    </div>
+    <div class="progress"><i style="width:${100 * quiz.i / quiz.qs.length}%"></i></div>
+    <div class="q">
+      <span class="tag">${esc(catName[q.cat])} · ${isFill ? 'Írd be a választ' : 'Válaszd ki'}</span>
+      <div class="prompt">${esc(q.prompt)}</div>
+      ${q.def ? `<p style="margin:0" class="hl-box"><span class="hl">${esc(q.def)}</span></p>` : ''}
+      ${isFill
+        ? `<form id="fillForm" class="opts"><label class="small muted" for="fillIn">A válaszod (pontosan, helyes ékezetekkel)</label><input type="text" id="fillIn" autocomplete="off" autocapitalize="off" spellcheck="false"><button class="btn" type="submit">Ellenőrzés</button></form>`
+        : `<div class="opts">${q.options.map((o, k) => `<button class="opt" type="button" data-k="${k}">${esc(o)}</button>`).join('')}</div>`}
+      <div id="fb"></div>
+    </div>
+  </section>`;
+  if (isFill) {
+    const inp = $('#fillIn'); inp.focus({ preventScroll: true });
+    $('#fillForm').onsubmit = e => { e.preventDefault(); if (!inp.value.trim()) return; answer(inp.value, checkFill(q, inp.value)); inp.disabled = true; e.target.querySelector('button').remove(); };
+  } else {
+    view.querySelectorAll('.opt').forEach(b => b.onclick = () => {
+      const val = q.options[+b.dataset.k], ok = val === q.correct;
+      view.querySelectorAll('.opt').forEach(x => { x.disabled = true; if (q.options[+x.dataset.k] === q.correct) x.classList.add('right'); });
+      if (!ok) b.classList.add('wrong');
+      answer(val, ok);
+    });
+  }
+}
+function answer(given, ok) {
+  const q = quiz.qs[quiz.i];
+  quiz.answers.push({ q, given, ok });
+  quiz.streak = ok ? quiz.streak + 1 : 0; quiz.best = Math.max(quiz.best, quiz.streak);
+  mark(q.id, ok);
+  const right = q.type === 'fill' ? q.accept.join(' / ') : q.correct;
+  $('#fb').innerHTML = `<div class="fb ${ok ? 'ok' : 'bad'}" role="status">
+      <b class="k">${ok ? 'Helyes!' : 'Nem jó.'}</b>
+      ${ok ? '' : `<span>Helyes válasz: <b>${esc(right)}</b></span>`}
+      <span>${esc(q.expl)}</span></div>
+    <button class="btn" id="next" type="button" style="margin-top:12px;width:100%">${quiz.i + 1 < quiz.qs.length ? 'Következő' : 'Kiértékelés'}</button>`;
+  const nx = $('#next'); nx.focus({ preventScroll: true });
+  nx.onclick = () => { quiz.i++; if (quiz.i < quiz.qs.length) renderQ(); else finishQuiz(); };
+}
+function finishQuiz() {
+  const s = quiz.answers.filter(a => a.ok).length, n = quiz.answers.length;
+  P.sessions.push({ d: Date.now(), s, n, c: catFilter, w: quiz.onlyWrong ? 1 : 0 }); save();
+  const pct = Math.round(100 * s / n);
+  const msg = pct === 100 ? 'Hibátlan! Szuper munka.' : pct >= 80 ? 'Nagyon jó! Már csak pár dolog maradt.' : pct >= 50 ? 'Jó úton jársz. A hibáidat érdemes még egyszer átnézni.' : 'Ez még gyakorlást kíván. Nézd át a kártyákat, aztán próbáld újra!';
+  current = 'result';
+  view.innerHTML = `<section>
+    <div><span class="tag">Kiértékelés</span><div class="score">${s}/${n}</div><p style="margin:6px 0 0">${msg}${quiz.best >= 3 ? ` Leghosszabb sorozat: ${quiz.best} jó válasz.` : ''}</p></div>
+    <div class="row"><button class="btn" id="again" type="button">Új kvíz</button><button class="btn ghost" id="wrongs" type="button" ${s < n ? '' : 'disabled'}>Hibák újra</button></div>
+    <h2>Válaszaid</h2>
+    <div class="list">${quiz.answers.map((a, k) => {
+      const right = a.q.type === 'fill' ? a.q.accept.join(' / ') : a.q.correct;
+      return `<div class="item ${a.ok ? 'okk' : 'badd'}">
+        <span class="tag">${k + 1}. · ${a.ok ? 'Helyes' : 'Hibás'}</span>
+        <b>${esc(a.q.prompt)}</b>${a.q.def ? `<span class="small">${esc(a.q.def)}</span>` : ''}
+        <span>Te: <b>${esc(a.given)}</b>${a.ok ? '' : ` · Helyes: <b>${esc(right)}</b>`}</span>
+        <span class="small muted">${esc(a.q.expl)}</span></div>`; }).join('')}</div>
+  </section>`;
+  $('#again').onclick = () => startQuiz(false);
+  $('#wrongs').onclick = () => startQuiz(true);
+  window.scrollTo({ top: 0 }); renderHeader();
+}
+
+// ----- Eredmények -----
+function catStats(items) {
+  return KB.categories.map(c => {
+    const qs = KB.questions.filter(q => q.cat === c.id);
+    let r = 0, w = 0; qs.forEach(q => { const x = items[q.id]; if (x) { r += x.r; w += x.w; } });
+    return { name: c.name, r, w, tried: qs.filter(q => items[q.id]).length, total: qs.length };
+  }).filter(x => x.total);
+}
+function statsBlock(data) {
+  const cs = catStats(data.items || {});
+  const missed = KB.questions.filter(q => data.items?.[q.id]?.w).sort((a, b) => data.items[b.id].w - data.items[a.id].w).slice(0, 8);
+  const sess = (data.sessions || []).slice(-8).reverse();
+  return `<div class="list">${cs.map(x => { const p = x.r + x.w ? Math.round(100 * x.r / (x.r + x.w)) : 0; return `<div class="bar"><span>${esc(x.name)} <span class="small muted">(${x.tried}/${x.total})</span></span><div class="progress"><i style="width:${p}%"></i></div><span>${x.r + x.w ? p + '%' : '–'}</span></div>`; }).join('')}</div>
+    <h2>Legtöbbször rontott</h2>
+    ${missed.length ? `<div class="list">${missed.map(q => `<div class="item"><span class="tag">${esc(cardById[q.card]?.term)} · ${data.items[q.id].w}× rossz</span><span>${esc(q.type === 'mcauto' ? q.q : q.q)}</span></div>`).join('')}</div>` : '<p class="muted">Még nincs rontott kérdés.</p>'}
+    <h2>Legutóbbi kvízek</h2>
+    ${sess.length ? `<div class="list">${sess.map(x => `<div class="bar"><span>${new Date(x.d).toLocaleString('hu-HU', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}${x.w ? ' · hibák' : ''}</span><div class="progress"><i style="width:${100 * x.s / x.n}%"></i></div><span>${x.s}/${x.n}</span></div>`).join('')}</div>` : '<p class="muted">Még nem volt kvíz.</p>'}`;
+}
+async function renderStats() {
+  view.innerHTML = `<section><h1>Eredmények</h1>${statsBlock(P)}<div id="others"></div>
+    ${window.claude ? '' : `<h2>Biztonsági mentés</h2>
+    <p class="small muted" style="margin:0">A haladásod ebben a böngészőben tárolódik. Időnként mentsd el fájlba, és ha új telefonra váltasz vagy törlődnek a böngészőadatok, töltsd vissza.</p>
+    <div class="row"><button class="btn plain" id="bkSave" type="button">Mentés fájlba</button><label class="btn plain" for="bkLoad" style="text-align:center">Visszatöltés fájlból</label><input type="file" id="bkLoad" accept="application/json,.json" hidden></div>
+    <div id="bkMsg"></div>`}
+    <button class="btn plain" id="reset" type="button">Saját haladás törlése</button><div id="resetConfirm"></div></section>`;
+  if ($('#bkSave')) {
+    $('#bkSave').onclick = () => {
+      const blob = new Blob([JSON.stringify({ app: 'zsofi-felveteli', v: 1, saved: Date.now(), progress: P })], { type: 'application/json' });
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+      a.download = 'felveteli-haladas-' + new Date().toISOString().slice(0, 10) + '.json';
+      document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+      $('#bkMsg').innerHTML = '<p class="small muted">A mentés elkészült (a Letöltések mappában keresd).</p>';
+    };
+    $('#bkLoad').onchange = async e => {
+      const f = e.target.files[0]; if (!f) return;
+      try {
+        const d = JSON.parse(await f.text());
+        if (d.app !== 'zsofi-felveteli' || !d.progress || typeof d.progress.items !== 'object') throw new Error('format');
+        P = { items: d.progress.items || {}, sessions: d.progress.sessions || [], updated: 0 }; save(); renderStats();
+      } catch (err) { $('#bkMsg').innerHTML = '<div class="fb bad"><span>Ez nem a felvételi gyakorló mentésfájlja. Válaszd ki a „felveteli-haladas-….json” fájlt.</span></div>'; }
+    };
+  }
+  $('#reset').onclick = () => {
+    $('#resetConfirm').innerHTML = `<div class="fb bad"><span>Biztosan törlöd az összes eredményedet? Ez nem vonható vissza.</span><div class="row"><button class="btn plain" id="rNo" type="button">Mégse</button><button class="btn" id="rYes" type="button">Törlés</button></div></div>`;
+    $('#rNo').onclick = () => $('#resetConfirm').innerHTML = '';
+    $('#rYes').onclick = () => { P = { items: {}, sessions: [], updated: 0 }; save(); renderStats(); };
+  };
+  if (!(db && isOwner)) return;
+  try {
+    const snap = await db.collection('progress').get();
+    const others = snap.docs.filter(d => d.id !== myId);
+    if (!others.length) return;
+    const ps = await userApi.profiles(others.map(d => d.id));
+    $('#others').innerHTML = others.map(d => `<details class="kb" style="margin-top:12px"><summary>${esc(ps?.[d.id]?.name || 'Másik felhasználó')} eredményei</summary><div style="display:flex;flex-direction:column;gap:14px;margin-top:12px">${statsBlock(d.data() || {})}</div></details>`).join('');
+  } catch (e) {}
+}
+
+// ----- Tudástár -----
+function renderKb() {
+  const draw = () => {
+    const term = ($('#kbSearch')?.value || '').toLocaleLowerCase('hu');
+    const list = KB.cards.filter(inCat).filter(c => !term || (c.term + ' ' + c.def + ' ' + c.use).toLocaleLowerCase('hu').includes(term));
+    $('#kbList').innerHTML = list.length ? list.map(c => `<details class="kb"><summary>${esc(c.term)} <span class="small muted">· ${esc(catName[c.cat])}</span></summary><p>${esc(c.def)}</p>${c.use ? `<p class="muted">${esc(c.use)}</p>` : ''}<p class="small muted">${KB.questions.filter(q => q.card === c.id).length} kérdés kapcsolódik hozzá</p></details>`).join('') : '<p class="muted">Nincs találat.</p>';
+  };
+  view.innerHTML = `<section><h1>Tudástár</h1>${chipsHtml()}<label class="small muted" for="kbSearch">Keresés</label><input type="text" id="kbSearch" placeholder="pl. jelző, rím, szólás"><div class="list" id="kbList"></div><p class="small muted">Tudástár verzió: ${esc(KB.version)}</p></section>`;
+  bindChips(renderKb); $('#kbSearch').oninput = draw; draw();
+}
+
+// ---------- Indítás ----------
+$('#homeBtn').onclick = () => go('home', renderHome);
+loadLocal();
+fetch('tudastar.json', { cache: 'no-cache' }).then(r => { if (!r.ok) throw new Error(r.status); return r.json(); }).then(d => {
+  KB = d; KB.cards.forEach(c => cardById[c.id] = c); KB.categories.forEach(c => catName[c.id] = c.name);
+  let seen = false; try { seen = localStorage.getItem('zsofi-help-seen') === '1'; localStorage.setItem('zsofi-help-seen', '1'); } catch (e) { seen = true; }
+  if (seen) go('home', renderHome); else go('help', renderHelp);
+  initCloud();
+}).catch(() => { view.innerHTML = `<section><h1>Nem sikerült betölteni a tudástárat</h1><p class="muted">Ellenőrizd az internetkapcsolatot, majd töltsd újra az oldalt.</p></section>`; });
+})();
+</script>
+
+<script>
+if ('serviceWorker' in navigator && location.protocol === 'https:') {
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+}
+</script>
+</body>
+</html>
