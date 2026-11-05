@@ -75,6 +75,11 @@ svg.doodle{overflow:visible}
 .chips{display:flex;gap:10px;overflow-x:auto;padding:4px 2px 8px;scrollbar-width:thin}
 .chip{flex:0 0 auto;font:inherit;font-size:17px;border:2px solid var(--ink);background:#fff;color:var(--ink);border-radius:var(--sk);padding:4px 14px;cursor:pointer}
 .chip[aria-pressed="true"]{background:var(--ink);color:#fff;transform:rotate(-1.5deg)}
+.subj{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.sbtn{font:inherit;font-size:21px;font-weight:700;border:2.5px solid var(--ink);background:#fff;color:var(--ink);border-radius:var(--sk);padding:8px 10px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;min-height:52px}
+.sbtn[aria-pressed="true"]{background:var(--yellow);box-shadow:3px 4px 0 var(--ink);transform:rotate(-1deg)}
+.sbtn:focus-visible{outline:3px dashed var(--blue);outline-offset:4px}
+.sbtn .sym{font-size:22px;line-height:1}
 
 .stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
 .stat{padding:10px 10px 12px;box-shadow:2px 4px 0 rgba(38,38,46,.18);position:relative}
@@ -305,6 +310,323 @@ function resultPraise(pct, prevPct) {
   return msg;
 }
 
+/*MATGEN-START*/
+// Matek feladatgenerátorok: minden hívás új számokkal készít feladatot, a helyes választ a gép számolja ki.
+const MATGEN = (() => {
+  const gcd = (a, b) => { a = Math.abs(a); b = Math.abs(b); while (b) [a, b] = [b, a % b]; return a || 1; };
+  const lcm = (a, b) => a / gcd(a, b) * b;
+  const fr = (n, d) => { if (d < 0) { n = -n; d = -d; } const g = gcd(n, d); return [n / g, d / g]; };
+  const round = (x, k = 10) => Math.round(x * 10 ** k) / 10 ** k;
+  // Magyar számformátum: tizedesvessző, a negatív előjel rendes mínusz
+  const fmt = x => { x = round(x, 6); const s = String(Math.abs(x)).replace('.', ','); return (x < 0 ? '−' : '') + s; };
+  const frs = ([n, d]) => d === 1 ? fmt(n) : `${n < 0 ? '−' : ''}${Math.abs(n)}/${d}`;
+  const terminating = d => { while (d % 2 === 0) d /= 2; while (d % 5 === 0) d /= 5; return d === 1; };
+  // Tört eredmény: törtként és (ha véges) tizedes törtként is elfogadjuk; végtelen tizedes törtnél 2 tizedesre kerekítve is jó.
+  const fracAns = (f, extra = {}) => {
+    const v = f[0] / f[1];
+    if (f[1] === 1) return { ans: v, show: fmt(v), ...extra };
+    if (terminating(f[1])) return { ans: v, show: `${frs(f)} = ${fmt(v)}`, ...extra };
+    return { ans: v, tol: 0.006, show: `${frs(f)} (≈ ${fmt(round(v, 2))})`, ...extra };
+  };
+  const mk = rnd => {
+    const ri = (a, b) => a + Math.floor(rnd() * (b - a + 1));
+    const pk = a => a[Math.floor(rnd() * a.length)];
+    const nz = (a, b) => { let x = 0; while (!x) x = ri(a, b); return x; };
+    return { ri, pk, nz, rnd };
+  };
+  const par = x => x < 0 ? `(${fmt(x)})` : fmt(x);
+  // Magyar toldalékok számokhoz: névelő (a/az) és -nak/-nek a kiejtett szám utolsó tagja szerint
+  const art = n => { n = Math.abs(Math.trunc(n)); const s = String(n); return (n === 1 || s[0] === '5' || (s.length % 3 === 1 && s[0] === '1' && n >= 1000)) ? 'az' : 'a'; };
+  const Art = n => art(n) === 'az' ? 'Az' : 'A';
+  const nak = n => { n = Math.abs(Math.trunc(n)); const o = n % 10, t = Math.floor(n / 10) % 10;
+    if (o) return [, 'nek', 'nek', 'nak', 'nek', 'nek', 'nak', 'nek', 'nak', 'nek'][o];
+    if (t) return [, 'nek', 'nak', 'nak', 'nek', 'nek', 'nak', 'nek', 'nak', 'nek'][t];
+    if (n % 1000 === 0 && n % 1e6) return 'nek'; return 'nak'; };
+  const SUP = { 2: '²', 3: '³', 4: '⁴', 5: '⁵', 6: '⁶', 7: '⁷' };
+  const ES = { 1: '1-es', 2: '2-es', 3: '3-as', 4: '4-es', 5: '5-ös' };
+
+  const G = [];
+  const add = (id, cat, card, title, fn) => G.push({ id, cat, card, title, fn });
+
+  // ---------- Számok, műveletek ----------
+  add('muv-sorrend', 'm-szam', 'Műveleti sorrend', 'Műveleti sorrend', R => {
+    const t = R.ri(0, 2);
+    if (t === 0) { const a = R.ri(2, 30), b = R.ri(2, 9), c = R.ri(2, 9), d = R.ri(1, 20); return { q: `Mennyi ${a} + ${b} · ${c} − ${d}?`, ans: a + b * c - d, expl: `Először szorzunk: ${b} · ${c} = ${b * c}, aztán balról jobbra: ${a} + ${b * c} − ${d} = ${a + b * c - d}.` }; }
+    if (t === 1) { const a = R.ri(2, 12), b = R.ri(2, 12), c = R.ri(2, 6), e = R.ri(2, 6), d = e * R.ri(1, 9); return { q: `Mennyi (${a} + ${b}) · ${c} − ${d} : ${e}?`, ans: (a + b) * c - d / e, expl: `Zárójel: ${a + b}; szorzás és osztás: ${a + b} · ${c} = ${(a + b) * c}, ${d} : ${e} = ${d / e}; végül ${(a + b) * c} − ${d / e} = ${(a + b) * c - d / e}.` }; }
+    const a = R.ri(20, 60), b = R.ri(2, 5), c = R.ri(2, 5), d = R.ri(2, 9); return { q: `Mennyi ${a} − ${b} · (${c} + ${d})?`, ans: a - b * (c + d), expl: `Zárójel: ${c} + ${d} = ${c + d}; szorzás: ${b} · ${c + d} = ${b * (c + d)}; ${a} − ${b * (c + d)} = ${a - b * (c + d)}.` };
+  });
+  add('negativ', 'm-szam', 'Negatív számok', 'Műveletek negatív számokkal', R => {
+    const t = R.ri(0, 2);
+    if (t === 0) { const a = R.nz(-15, 15), b = R.nz(-15, 15), c = R.nz(-15, 15); return { q: `Mennyi ${fmt(a)} − ${par(b)} + ${par(c)}?`, ans: a - b + c, expl: `Negatív szám kivonása = hozzáadás: ${fmt(a)} ${b < 0 ? '+ ' + fmt(-b) : '− ' + fmt(b)} ${c < 0 ? '− ' + fmt(-c) : '+ ' + fmt(c)} = ${fmt(a - b + c)}.` }; }
+    if (t === 1) { const a = R.nz(-9, 9), b = R.nz(-9, 9), c = R.nz(-9, 9); return { q: `Mennyi ${par(a)} · ${par(b)} − ${par(c)}?`, ans: a * b - c, expl: `${par(a)} · ${par(b)} = ${fmt(a * b)} (azonos előjel: pozitív, különböző: negatív); ${fmt(a * b)} − ${par(c)} = ${fmt(a * b - c)}.` }; }
+    const b = R.nz(-8, 8), q = R.nz(-9, 9), a = b * q; return { q: `Mennyi ${par(a)} : ${par(b)}?`, ans: q, expl: `${Math.abs(a)} : ${Math.abs(b)} = ${Math.abs(q)}, az előjel ${(a < 0) === (b < 0) ? 'pozitív (azonos előjelek)' : 'negatív (különböző előjelek)'}: ${fmt(q)}.` };
+  });
+  add('tort-osszead', 'm-szam', 'Törtek', 'Törtek összeadása, kivonása', R => {
+    const D = [2, 3, 4, 5, 6, 8, 10, 12];
+    const b = R.pk(D), d = R.pk(D.filter(x => x !== b)), a = R.ri(1, b - 1), c = R.ri(1, d - 1), minus = R.ri(0, 1) && a / b > c / d;
+    const L = lcm(b, d), f = fr(minus ? a * (L / b) - c * (L / d) : a * (L / b) + c * (L / d), L);
+    return { q: `Mennyi ${a}/${b} ${minus ? '−' : '+'} ${c}/${d}? (Törtként vagy tizedes törtként is írhatod.)`, ...fracAns(f), expl: `Közös nevező: ${L}. ${a}/${b} = ${a * L / b}/${L}, ${c}/${d} = ${c * L / d}/${L}. ${minus ? 'Különbségük' : 'Összegük'}: ${minus ? a * L / b - c * L / d : a * L / b + c * L / d}/${L}${f[1] !== L ? ', egyszerűsítve ' + frs(f) : ''}.` };
+  });
+  add('tort-szoroz', 'm-szam', 'Törtek', 'Törtek szorzása, osztása', R => {
+    const a = R.ri(1, 9), b = R.ri(2, 10), c = R.ri(1, 9), d = R.ri(2, 10), div = R.ri(0, 1);
+    const f = div ? fr(a * d, b * c) : fr(a * c, b * d);
+    return { q: `Mennyi ${a}/${b} ${div ? ':' : '·'} ${c}/${d}? (Törtként vagy tizedes törtként is írhatod.)`, ...fracAns(f), expl: div ? `Törttel úgy osztunk, hogy a reciprokával szorzunk: ${a}/${b} · ${d}/${c} = ${a * d}/${b * c} = ${frs(f)}.` : `Számlálót a számlálóval, nevezőt a nevezővel szorzunk: ${a * c}/${b * d} = ${frs(f)}.` };
+  });
+  add('tort-resze', 'm-szam', 'Törtek', 'Egy szám törtrésze', R => {
+    const d = R.pk([3, 4, 5, 6, 8]); let n = R.ri(1, d - 1); while (gcd(n, d) > 1) n = R.ri(1, d - 1); const base = d * R.ri(3, 25);
+    return { q: `Mennyi ${base}-${nak(base)} a ${n}/${d} része?`, ans: base / d * n, expl: `Egy rész: ${base} : ${d} = ${base / d}; ${n} rész: ${base / d} · ${n} = ${base / d * n}.` };
+  });
+  add('tizedes', 'm-szam', 'Tizedes törtek', 'Tizedes törtek', R => {
+    const t = R.ri(0, 2);
+    if (t === 0) { const a = R.ri(11, 99) / 10, b = R.ri(101, 999) / 100; return { q: `Mennyi ${fmt(a)} + ${fmt(b)}?`, ans: round(a + b), expl: `Helyiérték szerint egymás alá írva: ${fmt(a)} + ${fmt(b)} = ${fmt(round(a + b))}.` }; }
+    if (t === 1) { const a = R.ri(11, 99) / 10, b = R.ri(2, 9); return { q: `Mennyi ${fmt(a)} · ${b}?`, ans: round(a * b), expl: `${fmt(a * 10)} · ${b} = ${fmt(round(a * 10 * b))}, és egy tizedesjegyet visszaadunk: ${fmt(round(a * b))}.` }; }
+    const a = R.ri(2, 999) / 100, k = R.pk([10, 100, 1000]), mul = R.ri(0, 1); return { q: `Mennyi ${fmt(a)} ${mul ? '·' : ':'} ${k}?`, ans: round(mul ? a * k : a / k), expl: `${{ 10: '10-zel', 100: '100-zal', 1000: '1000-rel' }[k]} ${mul ? 'szorozva' : 'osztva'} a tizedesvessző ${String(k).length - 1} hellyel ${mul ? 'jobbra' : 'balra'} kerül: ${fmt(round(mul ? a * k : a / k))}.` };
+  });
+  add('hatvany', 'm-szam', 'Hatványok', 'Hatványok', R => {
+    const t = R.ri(0, 2);
+    if (t === 0) { const a = R.pk([2, 3, 5, 10]), n = a === 2 ? R.ri(3, 7) : a === 10 ? R.ri(2, 6) : R.ri(2, 4); return { q: `Mennyi ${a}${SUP[n]} (${a} ${art(n)} ${n}. hatványon)?`, ans: a ** n, expl: `${Array(n).fill(a).join(' · ')} = ${a ** n}.` }; }
+    if (t === 1) { const a = R.ri(2, 5), n = R.ri(2, 3); return { q: `Mennyi (−${a})${SUP[n]}?`, ans: (-a) ** n, expl: `Negatív szám ${n % 2 ? 'páratlan kitevőn negatív' : 'páros kitevőn pozitív'}: ${fmt((-a) ** n)}.` }; }
+    const a = R.ri(2, 9), b = R.ri(2, 4); return { q: `Mennyi ${a}² + ${b}³?`, ans: a * a + b ** 3, expl: `${a}² = ${a * a}, ${b}³ = ${b ** 3}, összesen ${a * a + b ** 3}.` };
+  });
+
+  // ---------- Arány, százalék ----------
+  add('szaz-ertek', 'm-arany', 'Százalékszámítás', 'Százalékérték', R => {
+    const p = R.pk([5, 10, 15, 20, 25, 30, 40, 50, 60, 75, 120]), base = R.ri(2, 40) * 20;
+    return { q: `Mennyi ${base}-${nak(base)} ${art(p)} ${p}%-a?`, ans: base * p / 100, expl: `1% = ${base} : 100 = ${fmt(base / 100)}; ${p}% = ${fmt(base / 100)} · ${p} = ${fmt(base * p / 100)}.` };
+  });
+  add('szaz-lab', 'm-arany', 'Százalékszámítás', 'Hány százalék?', R => {
+    const base = R.pk([20, 25, 40, 50, 80, 120, 200, 250, 400]), p = R.pk([5, 10, 15, 20, 25, 30, 40, 60, 75, 80]), part = base * p / 100;
+    if (!Number.isInteger(part)) return { q: `A 120-nak hány százaléka a 30?`, ans: 25, unit: '%', expl: '30 : 120 = 0,25 = 25%.' };
+    return { q: `${Art(base)} ${base}-${nak(base)} hány százaléka ${art(part)} ${part}?`, ans: p, unit: '%', expl: `${part} : ${base} = ${fmt(part / base)}, ez ${p}%.` };
+  });
+  add('szaz-alap', 'm-arany', 'Százalékszámítás', 'Melyik számnak a része?', R => {
+    const p = R.pk([10, 20, 25, 40, 50, 75]), base = R.ri(2, 30) * 20, part = base * p / 100;
+    return { q: `Melyik számnak ${art(p)} ${p}%-a ${part}?`, ans: base, expl: `${p}% = ${part}, így 1% = ${fmt(part / p)}, 100% = ${base}.` };
+  });
+  add('arvaltozas', 'm-arany', 'Százalékszámítás', 'Áremelés, leárazás', R => {
+    const p = R.pk([10, 20, 25, 30, 40, 50]), price = R.ri(4, 60) * 100, up = R.ri(0, 1), item = R.pk(['egy pulóver', 'egy könyv', 'egy társasjáték', 'egy hátizsák', 'egy cipő']);
+    const nw = price * (100 + (up ? p : -p)) / 100;
+    return { q: `${item[0].toUpperCase() + item.slice(1)} ára ${price} Ft volt. Az árát ${p}%-kal ${up ? 'megemelték' : 'csökkentették'}. Mennyi lett az új ár (Ft)?`, ans: nw, unit: 'Ft', expl: `${up ? 'Emelés' : 'Csökkentés'} után az ár ${100 + (up ? p : -p)}%-a az eredetinek: ${price} · ${fmt((100 + (up ? p : -p)) / 100)} = ${nw} Ft.` };
+  });
+  add('aranyos-osztas', 'm-arany', 'Arányosság', 'Arányos osztás', R => {
+    const a = R.ri(1, 5), b = R.ri(a + 1, 7), unit = R.ri(2, 15) * 10, total = (a + b) * unit;
+    const who = R.pk([['Anna', 'Bence'], ['Zsófi', 'Lili'], ['Dani', 'Eszter']]);
+    return { q: `${who[0]} és ${who[1]} ${total} Ft-ot oszt el egymás között ${a} : ${b} arányban. Hány forintot kap ${who[1]}?`, ans: b * unit, unit: 'Ft', expl: `Összesen ${a} + ${b} = ${a + b} rész, egy rész ${total} : ${a + b} = ${unit} Ft. ${who[1]} ${b} részt kap: ${b * unit} Ft.` };
+  });
+  add('egyenes-arany', 'm-arany', 'Arányosság', 'Egyenes arányosság', R => {
+    const per = R.ri(2, 12) * 50, n1 = R.ri(2, 6), n2 = R.ri(3, 12), thing = R.pk(['kg alma', 'liter tej', 'füzet', 'csomag keksz']);
+    return { q: `${n1} ${thing} ${n1 * per} Ft. Mennyibe kerül ${n2} ${thing} (Ft)?`, ans: n2 * per, unit: 'Ft', expl: `1 ${thing}: ${n1 * per} : ${n1} = ${per} Ft, így ${n2} darab/egység: ${n2} · ${per} = ${n2 * per} Ft.` };
+  });
+  add('forditott-arany', 'm-arany', 'Arányosság', 'Fordított arányosság', R => {
+    const pairs = [[2, 12, 3], [3, 8, 4], [4, 9, 6], [6, 10, 4], [5, 12, 6], [4, 15, 6], [3, 10, 5], [6, 8, 12]];
+    const [w1, d1, w2] = R.pk(pairs), work = w1 * d1;
+    if (work % w2) return { q: '6 munkás 10 nap alatt végez egy munkával. Ugyanolyan tempóban hány nap alatt végez 4 munkás?', ans: 15, unit: 'nap', expl: 'A munka 6 · 10 = 60 munkásnap; 60 : 4 = 15 nap.' };
+    return { q: `${w1} munkás ${d1} nap alatt végez egy munkával. Ugyanolyan tempóban hány nap alatt végez ${w2} munkás?`, ans: work / w2, unit: 'nap', expl: `A munka ${w1} · ${d1} = ${work} munkásnap; ${work} : ${w2} = ${work / w2} nap. (Több munkás → kevesebb nap: fordított arányosság.)` };
+  });
+
+  // ---------- Mértékegységek ----------
+  const conv = (R, units, label) => {
+    const i = R.ri(0, units.length - 2), j = R.ri(i + 1, Math.min(units.length - 1, i + 2)), big = R.ri(0, 1);
+    const [u1, f1] = units[big ? i : j], [u2, f2] = units[big ? j : i];
+    const v = big ? R.ri(2, 95) / (R.ri(0, 1) ? 10 : 1) : R.ri(2, 95) * (f2 / f1 >= 100 ? 10 : 1);
+    const ans = round(v * f1 / f2, 6);
+    return { q: `${fmt(v)} ${u1} hány ${u2}?`, ans, unit: u2, expl: `1 ${units[i][0]} = ${fmt(units[i][1] / units[j][1])} ${units[j][0]}, tehát ${fmt(v)} ${u1} = ${fmt(ans)} ${u2}.` };
+  };
+  add('mert-hossz', 'm-mert', 'Mértékegységek', 'Hosszúság átváltása', R => conv(R, [['km', 1e6], ['m', 1000], ['dm', 100], ['cm', 10], ['mm', 1]]));
+  add('mert-tomeg', 'm-mert', 'Mértékegységek', 'Tömeg átváltása', R => conv(R, [['t', 1e6], ['kg', 1000], ['dkg', 10], ['g', 1]]));
+  add('mert-urtartalom', 'm-mert', 'Mértékegységek', 'Űrtartalom, térfogat', R => {
+    const t = R.ri(0, 1);
+    if (t) return conv(R, [['hl', 100000], ['l', 1000], ['dl', 100], ['cl', 10], ['ml', 1]]);
+    const opts = [[R.ri(2, 30), 'dm³', 'l', 1], [R.ri(2, 9) * 500, 'cm³', 'l', 0.001], [R.ri(2, 20) / 10, 'm³', 'l', 1000], [R.ri(2, 90), 'l', 'cm³', 1000]];
+    const [v, u1, u2, f] = R.pk(opts);
+    return { q: `${fmt(v)} ${u1} hány ${u2}?`, ans: round(v * f), unit: u2, expl: `1 dm³ = 1 l, 1 l = 1000 cm³, 1 m³ = 1000 l. Így ${fmt(v)} ${u1} = ${fmt(round(v * f))} ${u2}.` };
+  });
+  add('mert-terulet', 'm-mert', 'Mértékegységek', 'Terület átváltása', R => conv(R, [['m²', 1e4], ['dm²', 100], ['cm²', 1], ['mm²', 0.01]]));
+  add('mert-ido', 'm-mert', 'Mértékegységek', 'Idő átváltása', R => {
+    const t = R.ri(0, 2);
+    if (t === 0) { const h = R.ri(1, 4), m = R.pk([15, 20, 30, 45, 50]); return { q: `${h} óra ${m} perc hány perc?`, ans: h * 60 + m, unit: 'perc', expl: `${h} · 60 + ${m} = ${h * 60 + m} perc.` }; }
+    if (t === 1) { const h = R.pk([0.25, 0.5, 0.75, 1.5, 2.5, 1.25]); return { q: `${fmt(h)} óra hány perc?`, ans: h * 60, unit: 'perc', expl: `${fmt(h)} · 60 = ${fmt(h * 60)} perc.` }; }
+    const m = R.ri(2, 9) * 15; return { q: `${m} perc hány óra? (Tizedes törtként vagy törtként írd!)`, ...fracAns(fr(m, 60)), unit: 'óra', expl: `${m} : 60 = ${frs(fr(m, 60))} óra.` };
+  });
+
+  // ---------- Egyenletek, kifejezések ----------
+  add('egyenlet1', 'm-alg', 'Egyenletek', 'Egyszerű egyenlet', R => {
+    const x = R.nz(-9, 12), a = R.ri(2, 9), b = R.nz(-20, 20), c = a * x + b;
+    return { q: `Oldd meg: ${a}x ${b < 0 ? '−' : '+'} ${Math.abs(b)} = ${fmt(c)}. Mennyi x?`, ans: x, expl: `Rendezzük: ${a}x = ${fmt(c)} ${b < 0 ? '+ ' + -b : '− ' + b} = ${fmt(c - b)}, majd mindkét oldalt elosztjuk: x = ${fmt(c - b)} : ${a} = ${fmt(x)}. Ellenőrzés: ${a} · ${par(x)} ${b < 0 ? '−' : '+'} ${Math.abs(b)} = ${fmt(c)}.` };
+  });
+  add('egyenlet2', 'm-alg', 'Egyenletek', 'Egyenlet mindkét oldalon x-szel', R => {
+    const x = R.nz(-8, 10), a = R.ri(3, 9), c = R.ri(1, a - 1), b = R.nz(-15, 15), d = (a - c) * x + b;
+    return { q: `Oldd meg: ${a}x ${b < 0 ? '−' : '+'} ${Math.abs(b)} = ${c === 1 ? '' : c}x ${d < 0 ? '−' : '+'} ${Math.abs(d)}. Mennyi x?`, ans: x, expl: `x-es tagok egy oldalra: ${a - c}x = ${fmt(d)} ${b < 0 ? '+ ' + -b : '− ' + b} = ${fmt(d - b)}; x = ${fmt(x)}.` };
+  });
+  add('egyenlet-zarojel', 'm-alg', 'Egyenletek', 'Zárójeles egyenlet', R => {
+    const x = R.nz(-6, 9), a = R.ri(2, 6), b = R.nz(-7, 7), c = a * (x + b);
+    return { q: `Oldd meg: ${a}(x ${b < 0 ? '−' : '+'} ${Math.abs(b)}) = ${fmt(c)}. Mennyi x?`, ans: x, expl: `Mindkét oldalt elosztjuk: x ${b < 0 ? '−' : '+'} ${Math.abs(b)} = ${fmt(c)} : ${a} = ${fmt(c / a)}, így x = ${fmt(x)}.` };
+  });
+  add('behelyettesites', 'm-alg', 'Algebrai kifejezések', 'Behelyettesítés', R => {
+    const x = R.nz(-4, 5), a = R.ri(1, 4), b = R.nz(-6, 6), c = R.nz(-9, 9), v = a * x * x + b * x + c;
+    const ax = a === 1 ? '' : a, bx = `${b < 0 ? '−' : '+'} ${Math.abs(b) === 1 ? '' : Math.abs(b)}x`, cx = `${c < 0 ? '−' : '+'} ${Math.abs(c)}`;
+    return { q: `Mennyi ${a === 1 ? 'az' : 'a'} ${ax}x² ${bx} ${cx} kifejezés értéke, ha x = ${fmt(x)}?`, ans: v, expl: `${a === 1 ? '' : a + ' · '}${par(x)}² ${b < 0 ? '−' : '+'} ${Math.abs(b)} · ${par(x)} ${cx} = ${a * x * x} ${b * x < 0 ? '−' : '+'} ${Math.abs(b * x)} ${cx} = ${fmt(v)}.` };
+  });
+  add('sorozat', 'm-alg', 'Számtani sorozat', 'Számtani sorozat', R => {
+    const a = R.ri(-10, 20), d = R.nz(-6, 9), t = R.ri(0, 1);
+    if (t) { const n = R.ri(10, 30); return { q: `Egy számtani sorozat első tagja ${fmt(a)}, a különbsége ${fmt(d)}. Mennyi ${art(n)} ${n}. tagja?`, ans: a + (n - 1) * d, expl: `aₙ = a₁ + (n − 1) · d = ${fmt(a)} + ${n - 1} · ${par(d)} = ${fmt(a + (n - 1) * d)}.` }; }
+    const s = [0, 1, 2, 3].map(k => a + k * d);
+    return { q: `Mi a következő szám? ${s.map(fmt).join('; ')}; …`, ans: a + 4 * d, expl: `A szomszédos tagok különbsége mindig ${fmt(d)} (${d > 0 ? 'nő' : 'csökken'}), így ${fmt(s[3])} ${d > 0 ? '+ ' + d : '− ' + -d} = ${fmt(a + 4 * d)}.` };
+  });
+
+  // ---------- Geometria ----------
+  add('teglalap', 'm-geo', 'Téglalap és négyzet', 'Téglalap kerülete, területe', R => {
+    const a = R.ri(3, 25), b = R.ri(2, 20), t = R.ri(0, 2);
+    if (t === 0) return { q: `Egy téglalap oldalai ${a} cm és ${b} cm. Mekkora a kerülete (cm)?`, ans: 2 * (a + b), unit: 'cm', expl: `K = 2 · (a + b) = 2 · (${a} + ${b}) = ${2 * (a + b)} cm.` };
+    if (t === 1) return { q: `Egy téglalap oldalai ${a} cm és ${b} cm. Mekkora a területe (cm²)?`, ans: a * b, unit: 'cm²', expl: `T = a · b = ${a} · ${b} = ${a * b} cm².` };
+    return { q: `Egy téglalap területe ${a * b} cm², egyik oldala ${a} cm. Mekkora a kerülete (cm)?`, ans: 2 * (a + b), unit: 'cm', expl: `A másik oldal ${a * b} : ${a} = ${b} cm, így K = 2 · (${a} + ${b}) = ${2 * (a + b)} cm.` };
+  });
+  add('negyzet', 'm-geo', 'Téglalap és négyzet', 'Négyzet', R => {
+    const a = R.ri(2, 15), t = R.ri(0, 1);
+    if (t) return { q: `Egy négyzet kerülete ${4 * a} cm. Mekkora a területe (cm²)?`, ans: a * a, unit: 'cm²', expl: `Az oldal ${4 * a} : 4 = ${a} cm, T = ${a}² = ${a * a} cm².` };
+    return { q: `Egy négyzet területe ${a * a} cm². Mekkora a kerülete (cm)?`, ans: 4 * a, unit: 'cm', expl: `Az oldal √${a * a} = ${a} cm, K = 4 · ${a} = ${4 * a} cm.` };
+  });
+  add('haromszog-terulet', 'm-geo', 'Háromszög', 'Háromszög területe', R => {
+    const a = R.ri(3, 20), m = R.ri(2, 16), t = R.ri(0, 1);
+    if (t) { const c = R.ri(3, 12) * 2, d = R.ri(3, 12); return { q: `Egy derékszögű háromszög befogói ${c} cm és ${d} cm. Mekkora a területe (cm²)?`, ans: c * d / 2, unit: 'cm²', expl: `Derékszögű háromszögnél T = (befogó · befogó) : 2 = ${c} · ${d} : 2 = ${fmt(c * d / 2)} cm².` }; }
+    return { q: `Egy háromszög egyik oldala ${a} cm, a hozzá tartozó magasság ${m} cm. Mekkora a területe (cm²)?`, ans: a * m / 2, unit: 'cm²', expl: `T = a · mₐ : 2 = ${a} · ${m} : 2 = ${fmt(a * m / 2)} cm².` };
+  });
+  add('teglatest', 'm-geo', 'Téglatest és kocka', 'Téglatest, kocka', R => {
+    const t = R.ri(0, 3), a = R.ri(2, 12), b = R.ri(2, 10), c = R.ri(2, 8);
+    if (t === 0) return { q: `Egy téglatest élei ${a} cm, ${b} cm és ${c} cm. Mekkora a térfogata (cm³)?`, ans: a * b * c, unit: 'cm³', expl: `V = a · b · c = ${a} · ${b} · ${c} = ${a * b * c} cm³.` };
+    if (t === 1) return { q: `Egy téglatest élei ${a} cm, ${b} cm és ${c} cm. Mekkora a felszíne (cm²)?`, ans: 2 * (a * b + b * c + a * c), unit: 'cm²', expl: `A = 2 · (ab + bc + ac) = 2 · (${a * b} + ${b * c} + ${a * c}) = ${2 * (a * b + b * c + a * c)} cm².` };
+    if (t === 2) { const k = R.ri(2, 10); return { q: `Egy kocka térfogata ${k ** 3} cm³. Mekkora a felszíne (cm²)?`, ans: 6 * k * k, unit: 'cm²', expl: `Az él ∛${k ** 3} = ${k} cm, a felszín 6 · ${k}² = ${6 * k * k} cm².` }; }
+    const l = R.ri(2, 6) * 10, w = R.ri(2, 5) * 10, h = R.ri(2, 6) * 10;
+    return { q: `Egy akvárium belső méretei ${l} cm × ${w} cm × ${h} cm. Hány liter víz fér bele?`, ans: l * w * h / 1000, unit: 'l', expl: `V = ${l} · ${w} · ${h} = ${l * w * h} cm³ = ${fmt(l * w * h / 1000)} dm³ = ${fmt(l * w * h / 1000)} liter.` };
+  });
+  add('kor', 'm-geo', 'Kör', 'Kör kerülete, területe', R => {
+    const r = R.ri(1, 10), t = R.ri(0, 1);
+    if (t) return { q: `Egy kör sugara ${r} cm. Mekkora a területe (cm²)? Számolj π ≈ 3,14-dal!`, ans: round(3.14 * r * r), unit: 'cm²', tol: 0.011, expl: `T = r² · π ≈ ${r * r} · 3,14 = ${fmt(round(3.14 * r * r))} cm².` };
+    return { q: `Egy kör sugara ${r} cm. Mekkora a kerülete (cm)? Számolj π ≈ 3,14-dal!`, ans: round(2 * 3.14 * r), unit: 'cm', tol: 0.011, expl: `K = 2 · r · π ≈ 2 · ${r} · 3,14 = ${fmt(round(2 * 3.14 * r))} cm.` };
+  });
+  add('szogek', 'm-geo', 'Szögek és sokszögek', 'Szögek a háromszögben', R => {
+    const t = R.ri(0, 2);
+    if (t === 0) { const a = R.ri(20, 90), b = R.ri(20, 160 - a); return { q: `Egy háromszög két szöge ${a}° és ${b}°. Hány fokos a harmadik szöge?`, ans: 180 - a - b, unit: '°', expl: `A háromszög belső szögeinek összege 180°: 180° − ${a}° − ${b}° = ${180 - a - b}°.` }; }
+    if (t === 1) { const top = R.ri(10, 80) * 2; return { q: `Egy egyenlő szárú háromszög szárszöge (a csúcsnál lévő szög) ${top}°. Hány fokos egy alapon fekvő szöge?`, ans: (180 - top) / 2, unit: '°', expl: `A két alapon fekvő szög egyenlő: (180° − ${top}°) : 2 = ${(180 - top) / 2}°.` }; }
+    const a = R.ri(15, 165); return { q: `Két szög mellékszögek (együtt egyenesszöget alkotnak). Az egyik ${a}°. Hány fokos a másik?`, ans: 180 - a, unit: '°', expl: `Mellékszögek összege 180°: 180° − ${a}° = ${180 - a}°.` };
+  });
+  add('sokszog', 'm-geo', 'Szögek és sokszögek', 'Sokszögek', R => {
+    const n = R.ri(4, 12), t = R.ri(0, 2);
+    if (t === 0) return { q: `Mennyi egy ${n}-szög belső szögeinek összege (fokban)?`, ans: (n - 2) * 180, unit: '°', expl: `(n − 2) · 180° = ${n - 2} · 180° = ${(n - 2) * 180}°.` };
+    if (t === 1) { const m = R.pk([4, 5, 6, 8, 9, 10, 12]); return { q: `Hány fokos egy szabályos ${m}-szög egy belső szöge?`, ans: (m - 2) * 180 / m, unit: '°', expl: `Összeg: ${(m - 2) * 180}°, ezt ${m} egyenlő részre osztjuk: ${fmt((m - 2) * 180 / m)}°.` }; }
+    return { q: `Hány átlója van egy ${n}-szögnek?`, ans: n * (n - 3) / 2, expl: `Minden csúcsból ${n - 3} átló indul, de így mindet kétszer számoljuk: ${n} · ${n - 3} : 2 = ${n * (n - 3) / 2}.` };
+  });
+  add('pitagorasz', 'm-geo', 'Pitagorasz-tétel', 'Pitagorasz-tétel', R => {
+    const [p, q, h] = R.pk([[3, 4, 5], [5, 12, 13], [6, 8, 10], [8, 15, 17], [9, 12, 15], [7, 24, 25]]), k = R.pk([1, 1, 2, 3]), t = R.ri(0, 1);
+    const [a, b, c] = [p * k, q * k, h * k];
+    if (t) return { q: `Egy derékszögű háromszög befogói ${a} cm és ${b} cm. Milyen hosszú az átfogója (cm)?`, ans: c, unit: 'cm', expl: `c² = a² + b² = ${a * a} + ${b * b} = ${c * c}, így c = ${c} cm.` };
+    return { q: `Egy derékszögű háromszög átfogója ${c} cm, egyik befogója ${a} cm. Milyen hosszú a másik befogó (cm)?`, ans: b, unit: 'cm', expl: `b² = c² − a² = ${c * c} − ${a * a} = ${b * b}, így b = ${b} cm.` };
+  });
+
+  // ---------- Statisztika, valószínűség, összeszámlálás ----------
+  add('atlag', 'm-stat', 'Átlag, medián, módusz', 'Átlag', R => {
+    const n = R.ri(4, 6), mean = R.ri(6, 20); let xs; do { xs = Array.from({ length: n - 1 }, () => mean + R.ri(-4, 4)); xs.push(mean * n - xs.reduce((s, x) => s + x, 0) + R.ri(0, 3)); } while (xs[n - 1] < 1 || xs[n - 1] > mean + 8);
+    const sum = xs.reduce((s, x) => s + x, 0), f = fr(sum, n);
+    return { q: `Mennyi a következő számok átlaga? ${xs.join('; ')}`, ...fracAns(f), expl: `Összeg: ${sum}, darabszám: ${n}; átlag = ${sum} : ${n} = ${frs(f)}.` };
+  });
+  add('median', 'm-stat', 'Átlag, medián, módusz', 'Medián', R => {
+    const n = R.pk([5, 6, 7]), xs = Array.from({ length: n }, () => R.ri(1, 30)), s = xs.slice().sort((a, b) => a - b);
+    const med = n % 2 ? s[(n - 1) / 2] : (s[n / 2 - 1] + s[n / 2]) / 2;
+    return { q: `Mennyi a következő számok mediánja? ${xs.join('; ')}`, ans: med, expl: `Nagyság szerint sorba rendezve: ${s.join('; ')}. ${n % 2 ? 'A középső elem: ' + fmt(med) : 'Páros sok szám: a két középső átlaga (' + s[n / 2 - 1] + ' + ' + s[n / 2] + ') : 2 = ' + fmt(med)}.` };
+  });
+  add('hianyzo-adat', 'm-stat', 'Átlag, medián, módusz', 'Hiányzó adat az átlagból', R => {
+    const mean = R.ri(3, 5), xs = [R.ri(2, 5), R.ri(2, 5), R.ri(2, 5), R.ri(2, 5)], miss = 5 * mean - xs.reduce((s, x) => s + x, 0);
+    if (miss < 1 || miss > 5) return { q: 'Zsófi négy jegye: 5; 4; 3; 5. Milyen jegyet kell kapnia az ötödikre, hogy az átlaga pontosan 4 legyen?', ans: 3, expl: 'Öt jegy, 4-es átlag: összesen 20 kell. 5 + 4 + 3 + 5 = 17, így 3-ast.' };
+    return { q: `Lili négy jegye: ${xs.join('; ')}. Milyen jegyet kell kapnia az ötödikre, hogy az öt jegy átlaga pontosan ${mean} legyen?`, ans: miss, expl: `Öt jegy, ${mean} átlag: az összeg ${5 * mean}. Eddig ${xs.reduce((s, x) => s + x, 0)}, tehát ${ES[miss]} kell.` };
+  });
+  add('valoszinuseg', 'm-stat', 'Valószínűség', 'Valószínűség', R => {
+    const t = R.ri(0, 1);
+    if (t) { const ev = R.pk([['páros számot', [2, 4, 6]], ['3-nál nagyobb számot', [4, 5, 6]], ['5-öst vagy 6-ost', [5, 6]], ['prímszámot', [2, 3, 5]], ['1-est', [1]]]); const f = fr(ev[1].length, 6); return { q: `Feldobunk egy szabályos dobókockát. Mennyi a valószínűsége, hogy ${ev[0]} dobunk? (Törtként vagy tizedes törtként)`, ...fracAns(f), expl: `Kedvező esetek: ${ev[1].join(', ')} (${ev[1].length} db), összes eset: 6. P = ${ev[1].length}/6${f[1] !== 6 ? ' = ' + frs(f) : ''}.` }; }
+    const r = R.ri(1, 8), b = R.ri(1, 8), g = R.ri(0, 6), n = r + b + g, f = fr(r, n);
+    return { q: `Egy zsákban ${r} piros, ${b} kék${g ? ` és ${g} zöld` : ''} golyó van. Véletlenszerűen kihúzunk egyet. Mennyi a valószínűsége, hogy piros? (Törtként vagy tizedes törtként)`, ...fracAns(f), expl: `Kedvező: ${r}, összes: ${n}. P = ${r}/${n}${f[1] !== n ? ' = ' + frs(f) : ''}.` };
+  });
+  add('osszeszamlalas', 'm-stat', 'Összeszámlálás', 'Hányféleképpen?', R => {
+    const t = R.ri(0, 2);
+    if (t === 0) { const n = R.ri(3, 5); const f = [1, 1, 2, 6, 24, 120][n]; return { q: `Hányféle sorrendben állhat sorba ${n} barát egy fényképhez?`, ans: f, expl: `Az első helyre ${n}, a másodikra ${n - 1}, … választás: ${Array.from({ length: n }, (_, k) => n - k).join(' · ')} = ${f}.` }; }
+    if (t === 1) { const n = R.ri(4, 12); return { q: `Egy ${n} fős társaságban mindenki mindenkivel egyszer kezet fog. Hány kézfogás történik?`, ans: n * (n - 1) / 2, expl: `Mindenki ${n - 1} emberrel fog kezet, de így minden kézfogást kétszer számolnánk: ${n} · ${n - 1} : 2 = ${n * (n - 1) / 2}.` }; }
+    const d = R.pk([[1, 2, 3], [2, 5, 7], [1, 4, 6, 8], [3, 5, 7, 9]]);
+    return { q: `Hány különböző kétjegyű szám készíthető ${art(d[0])} ${d.join(', ')} számjegyekből, ha egy számjegyet csak egyszer használhatunk?`, ans: d.length * (d.length - 1), expl: `Tízesek helyére ${d.length}, egyesek helyére a maradék ${d.length - 1} számjegy kerülhet: ${d.length} · ${d.length - 1} = ${d.length * (d.length - 1)}.` };
+  });
+
+  // ---------- Számelmélet ----------
+  add('lnko', 'm-szamel', 'LNKO és LKKT', 'Legnagyobb közös osztó', R => {
+    const g = R.pk([2, 3, 4, 5, 6, 8, 9, 12, 15]), a = g * R.ri(2, 9); let b = g * R.ri(2, 9); if (b === a) b += g;
+    return { q: `Mi ${art(a)} ${a} és ${art(b)} ${b} legnagyobb közös osztója?`, ans: gcd(a, b), expl: `${a} és ${b} közös osztói közül a legnagyobb: ${gcd(a, b)} (prímtényezős felbontásból a közös tényezők a kisebb kitevőn).` };
+  });
+  add('lkkt', 'm-szamel', 'LNKO és LKKT', 'Legkisebb közös többszörös', R => {
+    const a = R.ri(2, 15), b = R.ri(2, 18);
+    if (a === b) return { q: 'Mi a 12 és a 15 legkisebb közös többszöröse?', ans: 60, expl: '12 = 2² · 3, 15 = 3 · 5, LKKT = 2² · 3 · 5 = 60.' };
+    return { q: `Mi ${art(a)} ${a} és ${art(b)} ${b} legkisebb közös többszöröse?`, ans: lcm(a, b), expl: `${Art(a)} ${a} többszörösei közül az első, amely ${art(b)} ${b} többszöröse is: ${lcm(a, b)}.` };
+  });
+  add('osztok', 'm-szamel', 'Oszthatóság és prímek', 'Osztók száma', R => {
+    const n = R.pk([12, 18, 20, 24, 28, 30, 36, 40, 45, 48, 50, 60, 72, 100]);
+    const ds = []; for (let k = 1; k <= n; k++) if (n % k === 0) ds.push(k);
+    return { q: `Hány pozitív osztója van ${art(n)} ${n}-${nak(n)}?`, ans: ds.length, expl: `Osztói: ${ds.join(', ')}, ez ${ds.length} darab.` };
+  });
+  add('maradek', 'm-szamel', 'Oszthatóság és prímek', 'Maradékos osztás', R => {
+    const d = R.ri(3, 12), q = R.ri(5, 40), r = R.ri(0, d - 1), n = d * q + r;
+    return { q: `Mennyi a maradék ${art(n)} ${n} : ${d} osztásnál?`, ans: r, expl: `${n} = ${d} · ${q} + ${r}, a maradék ${r}.` };
+  });
+
+  // ---------- Szöveges feladatok ----------
+  add('ut-ido', 'm-szoveg', 'Út, idő, sebesség', 'Út, idő, sebesség', R => {
+    const t = R.ri(0, 2), v = R.pk([4, 5, 12, 15, 20, 30, 40, 50, 60, 80, 90, 100]);
+    if (t === 0) { const h = R.pk([0.5, 1.5, 2, 2.5, 3, 0.25]); return { q: `Egy autó ${v} km/h átlagsebességgel halad. Hány km-t tesz meg ${fmt(h)} óra alatt?`, ans: v * h, unit: 'km', expl: `s = v · t = ${v} · ${fmt(h)} = ${fmt(v * h)} km.` }; }
+    if (t === 1) { const h = R.ri(1, 5), s = v * h; return { q: `Egy kerékpáros ${s} km-t tett meg ${h} óra alatt. Mekkora volt az átlagsebessége (km/h)?`, ans: v, unit: 'km/h', expl: `v = s : t = ${s} : ${h} = ${v} km/h.` }; }
+    const m = R.pk([15, 20, 30, 45, 90, 120]), s = v * m / 60;
+    return { q: `Egy vonat ${v} km/h sebességgel ${fmt(s)} km utat tesz meg. Hány percig tart az út?`, ans: m, unit: 'perc', expl: `t = s : v = ${fmt(s)} : ${v} = ${fmt(m / 60)} óra = ${m} perc.` };
+  });
+  add('eletkor', 'm-szoveg', 'Szöveges feladatok', 'Életkoros feladat', R => {
+    const y = R.ri(2, 10), k = R.ri(2, 4), x = k * y, n = R.ri(2, 8);
+    return { q: `Anya most ${{ 2: 'kétszer', 3: 'háromszor', 4: 'négyszer' }[k]} annyi idős, mint a lánya. ${n} év múlva összesen ${x + y + 2 * n} évesek lesznek. Hány éves most a lány?`, ans: y, unit: 'év', expl: `Ha a lány most x éves, anya ${k}x. ${n} év múlva: x + ${n} + ${k}x + ${n} = ${x + y + 2 * n}, azaz ${k + 1}x = ${x + y}, x = ${y}.` };
+  });
+  add('vasarlas', 'm-szoveg', 'Szöveges feladatok', 'Vásárlás', R => {
+    const n = R.ri(2, 6), p = R.ri(3, 40) * 10, m = R.ri(1, 4), q = R.ri(5, 30) * 10, total = n * p + m * q, bill = total < 2000 ? 2000 : total < 5000 ? 5000 : 10000;
+    return { q: `Vettünk ${n} füzetet darabonként ${p} Ft-ért és ${m} tollat darabonként ${q} Ft-ért. Mennyi visszajárót kapunk, ha egy ${bill} Ft-os bankjeggyel fizetünk (Ft)?`, ans: bill - total, unit: 'Ft', expl: `Fizetendő: ${n} · ${p} + ${m} · ${q} = ${total} Ft. Visszajáró: ${bill} − ${total} = ${bill - total} Ft.` };
+  });
+  add('kozos-munka', 'm-szoveg', 'Szöveges feladatok', 'Egyszerre, többször', R => {
+    const a = R.pk([4, 6, 8, 10, 12, 15]), b = R.pk([6, 9, 10, 12, 15, 20].filter(x => x !== a));
+    return { q: `Egyik busz ${a} percenként, a másik ${b} percenként indul a végállomásról. 8:00-kor egyszerre indultak. Legközelebb hány perc múlva indulnak újra egyszerre?`, ans: lcm(a, b), unit: 'perc', expl: `A ${a} és a ${b} legkisebb közös többszöröse: ${lcm(a, b)} perc.` };
+  });
+
+  // ---------- Válasz-ellenőrzés ----------
+  // Elfogad: 12 | −3 | 0,5 | 0.5 | 3/4 | 1 1/2 | "x = 5" | mértékegységgel (12 cm, 25%, 30°).
+  function parseNum(s) {
+    s = String(s || '').toLowerCase().replace(/[−–—]/g, '-').replace(/ /g, ' ').trim();
+    s = s.replace(/^[a-z]\s*=\s*/, '');
+    s = s.replace(/(\d) (?=\d{3}(?!\d)(?!\s*\/))/g, '$1');   // ezres tagolás: 12 000
+    const m = s.match(/^(-?)\s*(\d+(?:[.,]\d+)?)(?:\s+(\d+)\s*\/\s*(\d+)|\s*\/\s*(\d+(?:[.,]\d+)?))?\s*(.*)$/);
+    if (!m) return NaN;
+    const rest = m[6].trim();
+    if (/\d/.test(rest)) return NaN;   // a maradék csak mértékegység lehet
+    const n = parseFloat(m[2].replace(',', '.'));
+    let v = n;
+    if (m[3] != null) { if (m[2].match(/[.,]/) || +m[4] === 0) return NaN; v = n + (+m[3]) / (+m[4]); }
+    else if (m[5] != null) { const d = parseFloat(m[5].replace(',', '.')); if (!d) return NaN; v = n / d; }
+    return m[1] ? -v : v;
+  }
+  function checkNum(q, input) {
+    const v = parseNum(input); if (!Number.isFinite(v)) return false;
+    const answers = Array.isArray(q.ans) ? q.ans : [q.ans];
+    return answers.some(a => Math.abs(v - a) <= 1e-9 * Math.max(1, Math.abs(a)) || (q.tol != null && Math.abs(v - a) <= q.tol));
+  }
+  function instance(id, rnd) {
+    const g = G.find(x => x.id === id); if (!g) return null;
+    const R = mk(rnd || Math.random);
+    const r = g.fn(R);
+    const u = r.unit ? (/^[°%]/.test(r.unit) ? r.unit : ' ' + r.unit) : '';
+    if (r.show == null) r.show = (Array.isArray(r.ans) ? r.ans : [r.ans]).map(fmt).join(' vagy ') + u;
+    else if (u) r.show = r.show.replace(/^([^ (]+)/, '$1' + u);
+    return r;
+  }
+  return { GENS: G, parseNum, checkNum, instance, fmt, gcd, lcm };
+})();
+/*MATGEN-END*/
 const QUIZ_LEN = 10;
 const EXAM_DATE = new Date('2027-01-23T10:00:00+01:00');   // központi írásbeli (forrás: a 2026/2027-es tanév rendje)
 const WEEK_GOAL = 5;
@@ -325,8 +647,14 @@ const totalCorrect = (T = P) => Object.entries(T.items || {}).reduce((a, [k, x])
 // Seedelt keverés: a napi kihívás egy napon mindenkinek ugyanaz
 function seeded(str) { let h = 1779033703 ^ str.length; for (const ch of str) { h = Math.imul(h ^ ch.charCodeAt(0), 3432918353); h = (h << 13) | (h >>> 19); } return () => { h = Math.imul(h ^ (h >>> 16), 2246822507); h = Math.imul(h ^ (h >>> 13), 3266489909); h ^= h >>> 16; return (h >>> 0) / 4294967296; }; }
 function seededShuffle(a, rnd) { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+const dailyKey = () => dayKey() + (MAT() ? '-m' : '');
 function dailyQuestions() {
-  const rnd = seeded('felviki-' + dayKey());
+  const rnd = seeded('felviki-' + dayKey() + (MAT() ? '-matek' : ''));
+  if (MAT()) {
+    const real = seededShuffle(KB.questions.filter(q => q.cat === 'm-felveteli'), rnd).slice(0, 2);
+    const gens = seededShuffle(KB.questions.filter(q => q.type === 'gen'), rnd).slice(0, 5 - real.length).map(q => ({ ...q, rnd: seeded('felviki-' + dayKey() + q.id) }));
+    return seededShuffle([...real, ...gens], rnd);
+  }
   const exam = seededShuffle(KB.questions.filter(q => q.cat === 'felveteli'), rnd).slice(0, 3);
   const other = seededShuffle(KB.questions.filter(q => q.cat !== 'felveteli' && q.type !== 'mcauto' && practicable(q)), rnd).slice(0, 2);
   return seededShuffle([...exam, ...other], rnd);
@@ -342,13 +670,14 @@ const BADGES = [
   { id: 'c50', name: '50 jó válasz', desc: 'Összesen 50 jó válasz', icon: () => doodle.star('#33b97f'), test: () => totalCorrect() >= 50 },
   { id: 'c200', name: '200 jó válasz', desc: 'Összesen 200 jó válasz', icon: () => doodle.star('#4a8fe7'), test: () => totalCorrect() >= 200 },
   { id: 'daily', name: 'Napi kihívás', desc: 'Teljesítettél egy napi kihívást', icon: () => doodle.swirl('#ff9f43'), test: c => c.mode === 'daily' },
-  { id: 'daily7', name: '7 napi kihívás', desc: '7 különböző napon', icon: () => doodle.swirl('#9b7bea'), test: () => Object.keys(P.daily || {}).length >= 7 },
-  { id: 'exam80', name: 'Felvételi bajnok', desc: 'Legalább 80% a Felvételi feladatok témakörben', icon: () => doodle.trophy('#ff7a9c'), test: c => c.quiz && c.cat === 'felveteli' && c.pct >= 80 },
+  { id: 'daily7', name: '7 napi kihívás', desc: '7 különböző napon', icon: () => doodle.swirl('#9b7bea'), test: () => new Set(Object.keys(P.daily || {}).map(k => k.slice(0, 10))).size >= 7 },
+  { id: 'exam80', name: 'Felvételi bajnok', desc: 'Legalább 80% az igazi felvételi feladatokban', icon: () => doodle.trophy('#ff7a9c'), test: c => c.quiz && (c.cat === 'felveteli' || c.cat === 'm-felveteli') && c.pct >= 80 },
   { id: 'fixer', name: 'Hibavadász', desc: 'Hibátlan „Hibáim” kör', icon: () => doodle.oops(), test: c => c.mode === 'wrong' && c.pct === 100 },
-  { id: 'cards', name: 'Kártyabajnok', desc: 'Minden kártyát átnéztél', icon: () => doodle.cards(), test: () => KB.cards.every(k => P.items['c:' + k.id]) },
+  { id: 'cards', name: 'Kártyabajnok', desc: 'Egy tantárgy minden kártyáját átnézted', icon: () => doodle.cards(), test: () => KB.cards.filter(inSubj).every(k => P.items['c:' + k.id]) },
   { id: 'reader', name: 'Szövegértő', desc: 'Legalább 80% egy szövegértési feladatban', icon: () => doodle.book(), test: c => c.mode === 'reading' && c.pct >= 80 },
   { id: 'writer', name: 'Fogalmazó', desc: 'Ellenőriztél egy saját fogalmazást', icon: () => doodle.arrow(), test: c => c.essay },
   { id: 'review', name: 'Ismétlés a tudás anyja', desc: 'Végigcsináltál egy „Ma ismételd” kört', icon: () => doodle.swirl('#33b97f'), test: c => c.mode === 'review' },
+  { id: 'matek', name: 'Számzseni', desc: '20 jó válasz matekból', icon: () => doodle.star('#9b7bea'), test: () => KB.questions.filter(q => subjOf(q) === 'matek').reduce((a, q) => a + (P.items[q.id]?.r || 0), 0) >= 20 },
   { id: 'duel', name: 'Párbajhős', desc: 'Megnyertél egy párbajt', icon: () => doodle.star('#ff9f43'), test: c => c.duelWin },
 ];
 function checkBadges(ctx, T = P) {
@@ -383,7 +712,7 @@ function summaryText() {
     `Kvízek: ${P.sessions.length} · Jó válaszok: ${tr} · Pontosság: ${tr + tw ? Math.round(100 * tr / (tr + tw)) + '%' : '–'}`,
     `Sorozat: ${streakDays()} nap · Ezen a héten: ${weekCount()}/${WEEK_GOAL} kvíz · Matricák: ${Object.keys(P.badges || {}).length}/${BADGES.length}`,
     '', 'Témakörök:', ...cs.filter(x => x.r + x.w).map(x => `• ${x.name}: ${Math.round(100 * x.r / (x.r + x.w))}% (${x.tried}/${x.total} kérdés)`)];
-  if (missed.length) lines.push('', 'Legtöbbször rontott:', ...missed.map(q => `• ${q.type === 'mcauto' ? cardById[q.card]?.term : q.q} (${P.items[q.id].w}×)`));
+  if (missed.length) lines.push('', 'Legtöbbször rontott:', ...missed.map(q => `• ${q.type === 'mcauto' ? cardById[q.card]?.term : q.type === 'gen' ? 'Matek: ' + q.q : q.q} (${P.items[q.id].w}×)`));
   if ((P.reports || []).length) lines.push('', `Jelzett kérdések: ${P.reports.length}`, ...P.reports.slice(-10).map(r => `• ${r.src ? r.src + ' – ' : ''}${r.q}${r.note ? ' → ' + r.note : ''}`));
   return lines.join('\n');
 }
@@ -396,7 +725,7 @@ function reportQuestion(q) {
     const note = m.querySelector('#mNote').value.trim();
     const text = q.type === 'mcauto' ? q.def : q.prompt;
     (P.reports ||= []).push({ id: q.id, q: text, src: q.src || '', note, t: Date.now() }); save();
-    const r = await shareText(`FelViki hibajelzés (${PLAYER})\n${q.src ? 'Forrás: ' + q.src + '\n' : ''}Kérdés: ${text}\nAz app szerint helyes: ${q.type === 'fill' ? q.accept.join(' / ') : q.correct}${note ? '\nMegjegyzés: ' + note : ''}`, 'FelViki hibajelzés');
+    const r = await shareText(`FelViki hibajelzés (${PLAYER})\n${q.src ? 'Forrás: ' + q.src + '\n' : ''}Kérdés: ${text}\nAz app szerint helyes: ${rightText(q)}${note ? '\nMegjegyzés: ' + note : ''}`, 'FelViki hibajelzés');
     if (r !== 'manual') { closeModal(); }
   };
 }
@@ -415,6 +744,13 @@ const LS_KEY = 'zsofi-felveteli-progress-v1';
 
 let KB = null, cardById = {}, catName = {};
 let catFilter = 'all';
+let SUBJ = 'magyar';   // 'magyar' vagy 'matek'
+try { if (localStorage.getItem('felviki-subj') === 'matek') SUBJ = 'matek'; } catch (e) {}
+let catSubj = {};
+const subjOf = x => catSubj[x.cat] || 'magyar';
+const inSubj = x => subjOf(x) === SUBJ;
+const MAT = () => SUBJ === 'matek';
+function setSubj(v) { SUBJ = v; catFilter = 'all'; try { localStorage.setItem('felviki-subj', v); } catch (e) {} }
 const PLAYERS = ['Zsófi', 'Lili'];
 const ALL_KEY = 'felviki-all-v2', PLAYER_KEY = 'felviki-player';
 const blankP = () => ({ items: {}, sessions: [], updated: 0 });
@@ -494,12 +830,12 @@ function migrateIds() {
 }
 
 // ---------- Kiválasztás ----------
-const inCat = x => catFilter === 'all' || x.cat === catFilter;
+const inCat = x => inSubj(x) && (catFilter === 'all' || x.cat === catFilter);
 // Okos ismétlés: a jól tudott kérdés egyre ritkábban jön vissza (doboz: 2 → 1 nap, 3 → 3 nap, 4 → 7 nap, 5 → 14 nap)
 const INTERVAL_DAYS = [0, 0, 1, 3, 7, 14];
 const isDue = x => !!x && x.b >= 2 && Date.now() >= (x.t || 0) + INTERVAL_DAYS[x.b] * 86400000;
 const practicable = q => !q.passage;   // a szövegértési kérdések csak a saját szövegükkel jönnek
-function dueQuestions() { return KB.questions.filter(q => practicable(q) && isDue(P.items[q.id])).sort((a, b) => (P.items[a.id].t + INTERVAL_DAYS[P.items[a.id].b] * 86400000) - (P.items[b.id].t + INTERVAL_DAYS[P.items[b.id].b] * 86400000)); }
+function dueQuestions() { return KB.questions.filter(q => inSubj(q) && practicable(q) && isDue(P.items[q.id])).sort((a, b) => (P.items[a.id].t + INTERVAL_DAYS[P.items[a.id].b] * 86400000) - (P.items[b.id].t + INTERVAL_DAYS[P.items[b.id].b] * 86400000)); }
 function priority(id) { const x = P.items[id]; if (!x || !x.b) return 2; if (x.b === 1) return 0; return isDue(x) ? 1 : 2 + x.b; }  // 0 hibás, 1 esedékes ismétlés, 2 új, 4+ tudott  // 0 hibás, 2 új, 3+ tudott
 function pickQuestions(n, onlyWrong) {
   let pool = KB.questions.filter(q => inCat(q) && practicable(q));
@@ -523,11 +859,14 @@ function buildAuto(q) {
 }
 function prep(q) {
   if (q.type === 'mcauto') return buildAuto(q);
+  if (q.type === 'gen') { const g = MATGEN.instance(q.gen, q.rnd); return { ...q, type: 'num', prompt: g.q, ans: g.ans, tol: g.tol, show: g.show, expl: g.expl, unit: g.unit }; }
+  if (q.type === 'num') return { ...q, prompt: q.q };
   if (q.type === 'mc') return { ...q, prompt: q.q, options: q.fixed ? q.options.slice() : shuffle(q.options), correct: q.options[q.answer] };
   return { ...q, prompt: q.q };
 }
 const norm = s => s.trim().replace(/[.!?]+$/, '').trim().replace(/\s+/g, ' ').toLocaleLowerCase('hu');
-const checkFill = (q, v) => q.accept.some(a => norm(a) === norm(v));
+const checkFill = (q, v) => q.type === 'num' ? MATGEN.checkNum(q, v) : q.accept.some(a => norm(a) === norm(v));
+const rightText = q => q.type === 'num' ? q.show : q.type === 'fill' ? q.accept.join(' / ') : q.correct;
 
 // ---------- Nézetek ----------
 let current = 'home';
@@ -569,11 +908,11 @@ function tryClose() {
   }, 300);
 }
 function renderHeader() {
-  const known = KB ? KB.cards.filter(c => (P.items['c:' + c.id]?.b || 0) >= 3).length : 0;
+  const known = KB ? KB.cards.filter(c => inSubj(c) && (P.items['c:' + c.id]?.b || 0) >= 3).length : 0;
   const r = $('#hdrRight');
   if (current === 'pick' && !PLAYER) { r.innerHTML = ''; return; }
   if (current === 'home') {
-    r.innerHTML = (KB ? `<span class="cnt">${known}/${KB.cards.length} fogalom megy</span>` : '') + (window.claude ? '' : `<button class="nb x" id="navExit" type="button">Kilépés</button>`);
+    r.innerHTML = (KB ? `<span class="cnt">${known}/${KB.cards.filter(inSubj).length} ${MAT() ? 'képlet' : 'fogalom'} megy</span>` : '') + (window.claude ? '' : `<button class="nb x" id="navExit" type="button">Kilépés</button>`);
   } else {
     r.innerHTML = `<button class="nb" id="navBack" type="button">← Vissza</button><button class="nb x" id="navExit" type="button">Kilépés ✕</button>`;
   }
@@ -586,7 +925,7 @@ function renderHeader() {
   if (ex) ex.onclick = () => { if (current === 'home') tryClose(); else if (quizInProgress()) askExitQuiz(); else goHome(); };
 }
 function chipsHtml() {
-  const all = [{ id: 'all', name: 'Minden' }, ...KB.categories.filter(c => c.id !== 'szovegertes')];
+  const all = [{ id: 'all', name: 'Minden' }, ...KB.categories.filter(c => c.id !== 'szovegertes' && (c.subj || 'magyar') === SUBJ && KB.questions.some(q => q.cat === c.id))];
   return `<div class="chips" role="group" aria-label="Témakör">${all.map(c => `<button class="chip" type="button" data-cat="${c.id}" aria-pressed="${catFilter === c.id}">${esc(c.name)}</button>`).join('')}</div>`;
 }
 function bindChips(rerender) { view.querySelectorAll('.chip').forEach(b => b.onclick = () => { catFilter = b.dataset.cat; rerender(); }); }
@@ -597,13 +936,14 @@ function renderHome() {
   const wrong = qs.filter(q => practicable(q) && P.items[q.id]?.b === 1).length;
   const due = dueQuestions().length;
   const answered = qs.filter(q => P.items[q.id]).length;
-  const last = P.sessions[P.sessions.length - 1];
+  const examCat = MAT() ? 'm-felveteli' : 'felveteli', examN = KB.questions.filter(q => q.cat === examCat).length;
   view.innerHTML = `<section>
     <div class="hero">
       <div class="bob">${felviki('wave')}</div>
       <div class="bubble pop"><h1>Szia Zsófi és Lili! 🙂</h1><p>FelViki vagyok és azért jöttem, hogy segítsek a felkészülésben.</p></div>
     </div>
     <div class="row" style="align-items:center;gap:10px"><span class="streak" style="background:var(--blue);transform:rotate(-1.5deg)">Most ${esc(PLAYER)} tanul</span><button class="chip" id="swapPlayer" type="button">Csere ⇄</button></div>
+    <div class="subj" role="group" aria-label="Tantárgy"><button class="sbtn" type="button" data-s="magyar" aria-pressed="${!MAT()}"><span class="sym">Aa</span>Magyar</button><button class="sbtn" type="button" data-s="matek" aria-pressed="${MAT()}"><span class="sym">+−</span>Matek</button></div>
     ${installBox()}
     ${chipsHtml()}
     <div class="stats">
@@ -612,24 +952,25 @@ function renderHome() {
       <div class="stat"><b>${Math.min(weekCount(), WEEK_GOAL)}/${WEEK_GOAL}</b><span>heti cél: kvíz${weekCount() >= WEEK_GOAL ? ' ✓' : ''}</span></div>
     </div>
     <div class="tiles">
-      <button class="tile main" type="button" id="tQuiz"><span class="ic">${doodle.bolt()}</span><b>Jöhet a kvíz!</b><span class="small">${QUIZ_LEN} kérdés vegyesen: válassz vagy írd be. A hibáid és az esedékes ismétlések előre kerülnek.</span></button>
+      <button class="tile main" type="button" id="tQuiz"><span class="ic">${doodle.bolt()}</span><b>Jöhet a kvíz!</b><span class="small">${MAT() ? `${QUIZ_LEN} feladat, mindig új számokkal: írd be az eredményt. A hibáid és az esedékes ismétlések előre kerülnek.` : `${QUIZ_LEN} kérdés vegyesen: válassz vagy írd be. A hibáid és az esedékes ismétlések előre kerülnek.`}</span></button>
       <button class="tile c-green" type="button" id="tReview" ${due ? '' : 'disabled'}><span class="ic">${doodle.swirl('#33b97f')}</span><b>Ma ismételd</b><span class="small">${due ? due + ' kérdés esedékes' : 'Ma nincs mit ismételni'}</span></button>
       <button class="tile c-pink" type="button" id="tWrong" ${wrong ? '' : 'disabled'}><span class="ic">${doodle.oops()}</span><b>Hibáim</b><span class="small">${wrong ? wrong + ' kérdés újra' : 'Most nincs egy se!'}</span></button>
-      <button class="tile c-yellow" type="button" id="tDaily"><span class="ic">${doodle.swirl('#ff9f43')}</span><b>Napi kihívás</b><span class="small">5 kérdés, ma mindenkinek ugyanaz</span>${(P.daily || {})[dayKey()] ? `<span class="done">kész: ${P.daily[dayKey()].s}/${P.daily[dayKey()].n}</span>` : ''}</button>
-      <button class="tile c-blue" type="button" id="tCards"><span class="ic">${doodle.cards()}</span><b>Kártyák</b><span class="small">Fordítsd meg, tudtad-e?</span></button>
+      <button class="tile c-yellow" type="button" id="tDaily"><span class="ic">${doodle.swirl('#ff9f43')}</span><b>Napi kihívás</b><span class="small">5 kérdés, ma mindenkinek ugyanaz</span>${(P.daily || {})[dailyKey()] ? `<span class="done">kész: ${P.daily[dailyKey()].s}/${P.daily[dailyKey()].n}</span>` : ''}</button>
+      <button class="tile c-blue" type="button" id="tCards"><span class="ic">${doodle.cards()}</span><b>${MAT() ? 'Képletkártyák' : 'Kártyák'}</b><span class="small">Fordítsd meg, tudtad-e?</span></button>
     </div>
     <h2 class="sect">Felvételire hangolva</h2>
     <div class="tiles">
-      <button class="tile c-orange" type="button" id="tExam"><span class="ic">${doodle.star('#ff9f43')}</span><b>Igazi felvételi</b><span class="small">${KB.questions.filter(q => q.cat === 'felveteli').length} feladat a régi feladatlapokból</span></button>
+      ${MAT() ? `<button class="tile c-orange wide" type="button" id="tExam" ${examN ? '' : 'disabled'}><span class="ic">${doodle.star('#ff9f43')}</span><b>Igazi felvételi</b><span class="small">${examN ? examN + ' feladat a régi matek feladatlapokból' : 'Hamarosan: valódi feladatok a régi matek feladatlapokból'}</span></button>`
+      : `<button class="tile c-orange" type="button" id="tExam"><span class="ic">${doodle.star('#ff9f43')}</span><b>Igazi felvételi</b><span class="small">${examN} feladat a régi feladatlapokból</span></button>
       <button class="tile c-purple" type="button" id="tRead"><span class="ic">${doodle.book()}</span><b>Szövegértés</b><span class="small">${(KB.passages || []).length} szöveg kérdésekkel</span></button>
-      <button class="tile c-yellow wide" type="button" id="tEssay"><span class="ic">${doodle.arrow()}</span><b>Fogalmazás</b><span class="small">${(KB.essays || []).length} régi felvételi téma, 15 perces órával és pontozással</span></button>
+      <button class="tile c-yellow wide" type="button" id="tEssay"><span class="ic">${doodle.arrow()}</span><b>Fogalmazás</b><span class="small">${(KB.essays || []).length} régi felvételi téma, 15 perces órával és pontozással</span></button>`}
     </div>
     <h2 class="sect">Játék és jutalom</h2>
     <div class="tiles">
       <button class="tile c-pink" type="button" id="tDuel"><span class="ic">${stick.flag('#ff7a9c')}</span><b>Párbaj</b><span class="small">Zsófi kontra Lili</span></button>
       <button class="tile c-yellow" type="button" id="tBadges"><span class="ic">${doodle.trophy()}</span><b>Matricáim</b><span class="small">${Object.keys(P.badges || {}).length}/${BADGES.length} gyűjtve</span></button>
       <button class="tile c-green" type="button" id="tStats"><span class="ic">${doodle.trophy('#33b97f')}</span><b>Eredmények</b><span class="small">Hol tartok?</span></button>
-      <button class="tile c-purple" type="button" id="tKb"><span class="ic">${doodle.book()}</span><b>Tudástár</b><span class="small">${KB.cards.length} fogalom</span></button>
+      <button class="tile c-purple" type="button" id="tKb"><span class="ic">${doodle.book()}</span><b>Tudástár</b><span class="small">${KB.cards.filter(inSubj).length} ${MAT() ? 'képlet és szabály' : 'fogalom'}</span></button>
       <button class="tile wide" type="button" id="tHelp"><span class="ic">${doodle.question()}</span><b>Hogyan működik?</b><span class="small">FelViki elmagyarázza</span></button>
     </div>
     <div class="scene" aria-hidden="true">${stick.read('#4a8fe7')}${stick.wave('#ff7a9c')}${stick.flag('#33b97f')}</div>
@@ -637,6 +978,7 @@ function renderHome() {
   </section>`;
   bindChips(renderHome);
   $('#swapPlayer').onclick = () => go('pick', renderPick);
+  view.querySelectorAll('.sbtn').forEach(b => b.onclick = () => { if (b.dataset.s !== SUBJ) { setSubj(b.dataset.s); renderHome(); } });
   if ($('#installBtn')) $('#installBtn').onclick = async () => { const e = installEvt; installEvt = null; try { e.prompt(); await e.userChoice; } catch (err) {} renderHome(); };
   $('#tQuiz').onclick = () => startQuiz(false);
   $('#tWrong').onclick = () => startQuiz(true);
@@ -646,9 +988,9 @@ function renderHome() {
   $('#tHelp').onclick = () => go('help', renderHelp);
   $('#tDaily').onclick = () => startQuiz(false, { mode: 'daily' });
   $('#tReview').onclick = () => startQuiz(false, { mode: 'review' });
-  $('#tRead').onclick = () => go('reading', renderReadingList);
-  $('#tEssay').onclick = () => go('essays', renderEssayList);
-  $('#tExam').onclick = () => startQuiz(false, { cat: 'felveteli' });
+  if ($('#tRead')) $('#tRead').onclick = () => go('reading', renderReadingList);
+  if ($('#tEssay')) $('#tEssay').onclick = () => go('essays', renderEssayList);
+  $('#tExam').onclick = () => startQuiz(false, { cat: examCat });
   $('#tDuel').onclick = startDuel;
   $('#tBadges').onclick = () => go('badges', renderBadges);
 }
@@ -677,7 +1019,7 @@ function renderPick() {
 function renderHelp() {
   const step = (t, b) => `<div class="item"><b>${t}</b><span>${b}</span></div>`;
   view.innerHTML = `<section>
-    <div class="say"><div>${felviki('happy')}</div><div class="fb pop"><b class="k" style="color:var(--ink)">Hogyan működik?</b><span>Megmutatom! Ez az app a magyar felvételire készít fel: a fogalmakat kártyákon tanulod meg, a kvízzel pedig kipróbálod, mennyire mennek.</span></div></div>
+    <div class="say"><div>${felviki('happy')}</div><div class="fb pop"><b class="k" style="color:var(--ink)">Hogyan működik?</b><span>Megmutatom! Ez az app a központi felvételire készít fel magyarból és matekból: a fogalmakat és képleteket kártyákon tanulod meg, a kvízzel pedig kipróbálod, mennyire mennek. A kezdőlapon a Magyar / Matek gombokkal válthatsz.</span></div></div>
     <h2>1. Válassz témakört</h2>
     <p style="margin:0">A kezdőlap tetején lévő gombokkal szűkítheted a témát (pl. Verstan, Mondattan). A „Minden” az összes témát keveri. A választás a kártyákra, a kvízre és a tudástárra is vonatkozik.</p>
     <h2>2. Tanulj kártyákkal</h2>
@@ -707,6 +1049,7 @@ function renderHelp() {
       ${step('Ma ismételd', 'Amit már tudsz, azt FelViki egyre ritkábban, de rendszeresen visszakérdezi (1, 3, 7, majd 14 nap múlva), hogy a felvételiig se felejtsd el.')}
       ${step('Szövegértés', 'Elolvasol egy rövid ismeretterjesztő szöveget, aztán kérdésekre válaszolsz. A szöveget közben is visszanézheted.')}
       ${step('Fogalmazás', 'Régi felvételi témák 15 perces órával, vázlatírással. A végén a felvételi szempontjai szerint pontozod magad.')}
+      ${step('Matek', 'A Matek gombra koppintva minden feladat új számokkal jön, így sosem fogynak el. Az eredményt írd be: 0,5 vagy 1/2 is jó, mértékegység nem kell. Minden válasz után megmutatom a számolás lépéseit is.')}
       ${step('Hibás kérdés?', 'A válasz után a „Hibásnak tűnik a kérdés?” gombbal jelezheted, és el is küldheted.')}
     </div>
     <h2>Jó tudni</h2>
@@ -776,6 +1119,7 @@ function startQuiz(onlyWrong, opts = {}) {
   go('quiz', quiz.duel ? renderHandoff : renderQ);
 }
 const duelWho = () => quiz.duel.order[quiz.i % 2];
+if (location.hostname === 'localhost') window.__quiz = () => quiz;   // csak a helyi tesztekhez
 function renderHandoff() {
   const who = duelWho();
   view.innerHTML = `<section class="handoff">
@@ -788,7 +1132,7 @@ function renderHandoff() {
 }
 function renderQ() {
   const q = quiz.qs[quiz.i];
-  const isFill = q.type === 'fill';
+  const isFill = q.type === 'fill' || q.type === 'num', isNum = q.type === 'num';
   view.innerHTML = `<section>
     <div class="row" style="align-items:center;justify-content:space-between">
       <span class="small muted" style="font-variant-numeric:tabular-nums">${quiz.duel ? esc(duelWho()) + ' · ' : quiz.mode === 'daily' ? 'Napi kihívás · ' : ''}${quiz.i + 1}. kérdés / ${quiz.qs.length}</span>
@@ -796,19 +1140,19 @@ function renderQ() {
     </div>
     <div class="progress"><i style="width:${100 * quiz.i / quiz.qs.length}%"></i></div>
     <div class="q">
-      <span class="tag">${q.src ? `<b style="color:var(--ink)">Igazi felvételi</b> · ${esc(q.src)}` : esc(catName[q.cat])} · ${isFill ? 'Írd be a választ' : 'Válaszd ki'}</span>
+      <span class="tag">${q.src ? `<b style="color:var(--ink)">Igazi felvételi</b> · ${esc(q.src)}` : esc(catName[q.cat])} · ${isNum ? 'Írd be az eredményt' : isFill ? 'Írd be a választ' : 'Válaszd ki'}</span>
       ${q.passage ? passageHtml(q.passage, false) : ''}
       <div class="prompt">${esc(q.prompt)}</div>
       ${q.def ? `<p style="margin:0" class="hl-box"><span class="hl">${esc(q.def)}</span></p>` : ''}
       ${isFill
-        ? `<form id="fillForm" class="opts"><label class="small muted" for="fillIn">A válaszod (pontosan, helyes ékezetekkel)</label><input type="text" id="fillIn" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="done"><button class="btn" type="submit">Ellenőrzés</button></form>`
+        ? `<form id="fillForm" class="opts"><label class="small muted" for="fillIn">${isNum ? 'Az eredmény (pl. 12, −3, 0,5 vagy 3/4; mértékegység nem kell)' : 'A válaszod (pontosan, helyes ékezetekkel)'}</label><input type="text" id="fillIn" ${isNum ? 'inputmode="text" class="numin"' : ''} autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="done"><button class="btn" type="submit">Ellenőrzés</button></form>`
         : `<div class="opts">${q.options.map((o, k) => `<button class="opt" type="button" data-k="${k}">${esc(o)}</button>`).join('')}</div>`}
       <div id="fb"></div>
     </div>
   </section>`;
   if (isFill) {
     const inp = $('#fillIn'); inp.focus({ preventScroll: true });
-    $('#fillForm').onsubmit = e => { e.preventDefault(); if (!inp.value.trim()) return; answer(inp.value, checkFill(q, inp.value)); inp.disabled = true; e.target.querySelector('button').remove(); };
+    $('#fillForm').onsubmit = e => { e.preventDefault(); if (!inp.value.trim()) return; if (isNum && !Number.isFinite(MATGEN.parseNum(inp.value))) { $('#fb').innerHTML = '<p class="small muted">Számot írj be, például 12, −3, 0,5 vagy 3/4.</p>'; return; } answer(inp.value, checkFill(q, inp.value)); inp.disabled = true; e.target.querySelector('button').remove(); };
   } else {
     view.querySelectorAll('.opt').forEach(b => b.onclick = () => {
       const val = q.options[+b.dataset.k], ok = val === q.correct;
@@ -823,7 +1167,7 @@ function answer(given, ok) {
   quiz.answers.push({ q, given, ok });
   quiz.streak = ok ? quiz.streak + 1 : 0; quiz.best = Math.max(quiz.best, quiz.streak);
   if (quiz.duel) { const who = duelWho(); markFor(who, q.id, ok); if (ok) quiz.duel.scores[who]++; } else mark(q.id, ok);
-  const right = q.type === 'fill' ? q.accept.join(' / ') : q.correct;
+  const right = rightText(q);
   const st = ok && !quiz.duel ? STREAK[quiz.streak] : null;
   if (st && quiz.streak >= 5) confetti();
   $('#fb').innerHTML = `<div class="say"><div class="${ok ? 'bob' : ''}">${felviki(ok ? (st ? 'cheer' : 'happy') : 'comfort')}</div>
@@ -841,11 +1185,11 @@ function answer(given, ok) {
 function finishQuiz() {
   const s = quiz.answers.filter(a => a.ok).length, n = quiz.answers.length;
   const modeOf = x => x.m || (x.w === 2 ? 'duel' : x.w ? 'wrong' : 'normal');
-  const prev = [...P.sessions].reverse().find(x => modeOf(x) === quiz.mode && (quiz.mode === 'daily' || x.c === catFilter));
-  P.sessions.push({ d: Date.now(), s, n, c: catFilter, w: quiz.onlyWrong ? 1 : 0, m: quiz.mode });
+  const prev = [...P.sessions].reverse().find(x => modeOf(x) === quiz.mode && (x.j || 'magyar') === SUBJ && (quiz.mode === 'daily' || x.c === catFilter));
+  P.sessions.push({ d: Date.now(), s, n, c: catFilter, w: quiz.onlyWrong ? 1 : 0, m: quiz.mode, j: SUBJ });
   touchDay();
   const pct = Math.round(100 * s / n);
-  if (quiz.mode === 'daily' && !(P.daily ||= {})[dayKey()]) P.daily[dayKey()] = { s, n };
+  if (quiz.mode === 'daily' && !(P.daily ||= {})[dailyKey()]) P.daily[dailyKey()] = { s, n };
   if (quiz.mode === 'reading') { const pr = (P.reading ||= {})[quiz.opts.passage]; if (!pr || s >= pr.s) P.reading[quiz.opts.passage] = { s, n }; }
   const fresh = checkBadges({ quiz: true, pct, n, best: quiz.best, mode: quiz.mode, cat: catFilter });
   save();
@@ -859,7 +1203,7 @@ function finishQuiz() {
     <div class="row"><button class="btn" id="again" type="button">Még egy kör!</button><button class="btn ghost" id="wrongs" type="button" ${s < n ? '' : 'disabled'}>Hibák újra</button></div>
     <h2>Nézzük meg együtt!</h2>
     <div class="list">${quiz.answers.map((a, k) => {
-      const right = a.q.type === 'fill' ? a.q.accept.join(' / ') : a.q.correct;
+      const right = rightText(a.q);
       return `<div class="item ${a.ok ? 'okk' : 'badd'}">
         <span class="tag">${k + 1}. · ${a.ok ? 'Helyes' : 'Hibás'}${a.q.src ? ' · Igazi felvételi, ' + esc(a.q.src) : ''}</span>
         <b>${esc(a.q.prompt)}</b>${a.q.def ? `<span class="small">${esc(a.q.def)}</span>` : ''}
@@ -1043,9 +1387,9 @@ function statsBlock(data) {
   const sess = (data.sessions || []).slice(-8).reverse();
   return `<div class="list">${cs.map(x => { const p = x.r + x.w ? Math.round(100 * x.r / (x.r + x.w)) : 0; return `<div class="bar"><span>${esc(x.name)} <span class="small muted">(${x.tried}/${x.total})</span></span><div class="progress"><i style="width:${p}%"></i></div><span>${x.r + x.w ? p + '%' : '–'}</span></div>`; }).join('')}</div>
     <h2>Legtöbbször rontott</h2>
-    ${missed.length ? `<div class="list">${missed.map(q => `<div class="item"><span class="tag">${esc(cardById[q.card]?.term)} · ${data.items[q.id].w}× rossz</span><span>${esc(q.type === 'mcauto' ? 'Melyik fogalom: ' + q.q : q.q)}</span><span class="small">Helyes: <b>${esc(q.type === 'mcauto' ? cardById[q.card]?.term : q.type === 'fill' ? q.accept.join(' / ') : q.options[q.answer])}</b></span></div>`).join('')}</div>` : '<p class="muted">Még nincs rontott kérdés.</p>'}
+    ${missed.length ? `<div class="list">${missed.map(q => `<div class="item"><span class="tag">${esc(cardById[q.card]?.term)} · ${data.items[q.id].w}× rossz</span><span>${esc(q.type === 'mcauto' ? 'Melyik fogalom: ' + q.q : q.type === 'gen' ? 'Matek: ' + q.q + ' (mindig új számokkal)' : q.q)}</span>${q.type === 'gen' ? '' : `<span class="small">Helyes: <b>${esc(q.type === 'mcauto' ? cardById[q.card]?.term : q.type === 'num' ? q.show : q.type === 'fill' ? q.accept.join(' / ') : q.options[q.answer])}</b></span>`}</div>`).join('')}</div>` : '<p class="muted">Még nincs rontott kérdés.</p>'}
     <h2>Legutóbbi kvízek</h2>
-    ${sess.length ? `<div class="list">${sess.map(x => `<div class="bar"><span>${new Date(x.d).toLocaleString('hu-HU', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}${x.m === 'duel' ? ' · párbaj' : x.m === 'daily' ? ' · napi kihívás' : x.w ? ' · hibák' : ''}</span><div class="progress"><i style="width:${100 * x.s / x.n}%"></i></div><span>${x.s}/${x.n}</span></div>`).join('')}</div>` : '<p class="muted">Még nem volt kvíz.</p>'}`;
+    ${sess.length ? `<div class="list">${sess.map(x => `<div class="bar"><span>${new Date(x.d).toLocaleString('hu-HU', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}${x.j === 'matek' ? ' · matek' : ''}${x.m === 'duel' ? ' · párbaj' : x.m === 'daily' ? ' · napi kihívás' : x.w ? ' · hibák' : ''}</span><div class="progress"><i style="width:${100 * x.s / x.n}%"></i></div><span>${x.s}/${x.n}</span></div>`).join('')}</div>` : '<p class="muted">Még nem volt kvíz.</p>'}`;
 }
 async function renderStats() {
   let tr = 0, tw = 0; Object.entries(P.items).forEach(([k, x]) => { if (!k.startsWith('c:')) { tr += x.r; tw += x.w; } });
@@ -1106,9 +1450,9 @@ function renderKb() {
   const draw = () => {
     const term = ($('#kbSearch')?.value || '').toLocaleLowerCase('hu');
     const list = KB.cards.filter(inCat).filter(c => !term || (c.term + ' ' + c.def + ' ' + c.use).toLocaleLowerCase('hu').includes(term));
-    $('#kbList').innerHTML = list.length ? list.map(c => `<details class="kb"><summary>${esc(c.term)} <span class="small muted">· ${esc(catName[c.cat])}</span></summary><p>${esc(c.def)}</p>${c.use ? `<p class="muted">${esc(c.use)}</p>` : ''}<p class="small muted">${KB.questions.filter(q => q.card === c.id).length} kérdés kapcsolódik hozzá</p></details>`).join('') : '<p class="muted">Nincs találat.</p>';
+    $('#kbList').innerHTML = list.length ? list.map(c => `<details class="kb"><summary>${esc(c.term)} <span class="small muted">· ${esc(catName[c.cat])}</span></summary><p>${esc(c.def)}</p>${c.use ? `<p class="muted">${esc(c.use)}</p>` : ''}<p class="small muted">${KB.questions.filter(q => q.card === c.id).length} ${c.cat.startsWith('m-') ? 'feladattípus' : 'kérdés'} kapcsolódik hozzá</p></details>`).join('') : '<p class="muted">Nincs találat.</p>';
   };
-  view.innerHTML = `<section><h1>Tudástár</h1>${chipsHtml()}<label class="small muted" for="kbSearch">Keresés</label><input type="text" id="kbSearch" placeholder="pl. jelző, rím, szólás"><div class="list" id="kbList"></div><p class="small muted">Tudástár verzió: ${esc(KB.version)}</p></section>`;
+  view.innerHTML = `<section><h1>Tudástár</h1>${chipsHtml()}<label class="small muted" for="kbSearch">Keresés</label><input type="text" id="kbSearch" placeholder="${MAT() ? 'pl. százalék, kör, átlag' : 'pl. jelző, rím, szólás'}"><div class="list" id="kbList"></div><p class="small muted">Tudástár verzió: ${esc(KB.version)}</p></section>`;
   bindChips(renderKb); $('#kbSearch').oninput = draw; draw();
 }
 
@@ -1116,7 +1460,7 @@ function renderKb() {
 $('#homeBtn').onclick = () => { if (quizInProgress()) askExitQuiz(); else goHome(); };
 loadLocal();
 fetch('tudastar.json', { cache: 'no-cache' }).then(r => { if (!r.ok) throw new Error(r.status); return r.json(); }).then(d => {
-  KB = d; KB.cards.forEach(c => cardById[c.id] = c); KB.categories.forEach(c => catName[c.id] = c.name);
+  KB = d; KB.cards.forEach(c => cardById[c.id] = c); KB.categories.forEach(c => { catName[c.id] = c.name; if (c.subj) catSubj[c.id] = c.subj; });
   if (migrateIds()) { ALL.updated = Date.now(); try { localStorage.setItem(ALL_KEY, JSON.stringify(ALL)); } catch (e) {} }
   if (!PLAYER) { current = 'pick'; renderPick(); renderHeader(); }
   else {
