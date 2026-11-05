@@ -182,7 +182,8 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt
 const shuffle = a => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
 // ---------- Rajzok: FelViki (ceruza-figura), pálcikaemberek, firkák ----------
 const INK = '#26262e';
-const pick = a => a[Math.floor(Math.random() * a.length)];
+const pick = a => String(a[Math.floor(Math.random() * a.length)]).replace(/\{n\}/g, () => (typeof PLAYER === 'string' ? PLAYER : ''));
+const nm = t => String(t).replace(/\{n\}/g, () => (typeof PLAYER === 'string' ? PLAYER : ''));
 const S = (vb, inner, cls = '') => `<svg class="doodle ${cls}" viewBox="${vb}" aria-hidden="true" fill="none" stroke="${INK}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><g class="wob">${inner}</g></svg>`;
 
 // FelViki: álló ceruza, hegye a "sapkája", radírja a "cipője". Hangulatok: happy, cheer, wow, think, comfort, wave
@@ -255,16 +256,16 @@ function confetti() {
 }
 
 // ---------- FelViki mondatai ----------
-const PRAISE = ['Szuper, Zsófi!', 'Telitalálat!', 'Ez az!', 'Pontosan!', 'Ügyes vagy!', 'Profi!', 'Hibátlan!', 'Nagyon megy ez!', 'Bravó!', 'Így kell ezt!', 'Zseniális!', 'Igen, igen, igen!', 'Látom, ez már megy!', 'Ez könnyen ment!'];
+const PRAISE = ['Szuper, {n}!', 'Telitalálat!', 'Ez az!', 'Pontosan!', 'Ügyes vagy!', 'Profi!', 'Hibátlan!', 'Nagyon megy ez!', 'Bravó!', 'Így kell ezt!', 'Zseniális!', 'Igen, igen, igen!', 'Látom, ez már megy!', 'Ez könnyen ment!'];
 const ENCOURAGE = ['Semmi baj, most megtanultad!', 'Majdnem! Jegyezd meg ezt:', 'Ebből tanulunk, legközelebb menni fog!', 'Nem gond, ezért gyakorlunk!', 'Hoppá! Nézzük meg együtt:', 'Ez trükkös volt. Figyelj:', 'Ne aggódj, ez a következőre már megy!'];
-const STREAK = { 3: 'Három egymás után! Lendületben vagy!', 5: 'Öt jó válasz zsinórban! Megállíthatatlan vagy!', 7: 'Hét a sorban! Ez már varázslat!', 10: 'Tíz egymás után! Ez elképesztő, Zsófi!' };
+const STREAK = { 3: 'Három egymás után! Lendületben vagy!', 5: 'Öt jó válasz zsinórban! Megállíthatatlan vagy!', 7: 'Hét a sorban! Ez már varázslat!', 10: 'Tíz egymás után! Ez elképesztő, {n}!' };
 function resultPraise(pct, prevPct) {
-  const tiers = pct === 100 ? ['TÖKÉLETES! Minden válasz jó, nagyon büszke vagyok rád!', 'Hibátlan kör! Te vagy a felvételi bajnoka!', 'Minden pont a tiéd! Erre csak azt tudom mondani: WOW!']
-    : pct >= 80 ? ['Fantasztikus eredmény! Már majdnem minden megy!', 'Hű, ez nagyon jó lett! Így tovább!', 'Szuper vagy! Ezzel a tudással nyugodtan mehetsz a felvételire!']
-    : pct >= 60 ? ['Szép munka! Több mint a fele jó, és ez egyre jobb lesz!', 'Ügyes voltál! Pár dolgot még átnézünk, és meglesz!', 'Jó úton vagy, Zsófi! Csak így tovább!']
+  const tiers = pct === 100 ? ['TÖKÉLETES! Minden válasz jó, {n}, nagyon büszke vagyok rád!', 'Hibátlan kör! Te vagy a felvételi bajnoka!', 'Minden pont a tiéd! Erre csak azt tudom mondani: WOW!']
+    : pct >= 80 ? ['Fantasztikus eredmény, {n}! Már majdnem minden megy!', 'Hű, ez nagyon jó lett! Így tovább!', 'Szuper vagy! Ezzel a tudással nyugodtan mehetsz a felvételire!']
+    : pct >= 60 ? ['Szép munka! Több mint a fele jó, és ez egyre jobb lesz!', 'Ügyes voltál! Pár dolgot még átnézünk, és meglesz!', 'Jó úton vagy, {n}! Csak így tovább!']
     : pct >= 40 ? ['Jól haladsz! A hibákból tanulunk a legtöbbet.', 'Nem rossz! Nézzük át a hibákat, és a következő még jobb lesz!', 'Szép próbálkozás! Gyakoroljunk még egy kicsit!']
-    : ['Semmi baj! Minden hiba egy lépés előre. Nézzük át együtt!', 'Ne add fel! A kártyákkal gyorsan belejössz, aztán újra próbáljuk!', 'Az elején mindenki így kezdi. Gyakoroljunk, és menni fog!'];
-  let msg = pick(tiers);
+    : ['Semmi baj, {n}! Minden hiba egy lépés előre. Nézzük át együtt!', 'Ne add fel! A kártyákkal gyorsan belejössz, aztán újra próbáljuk!', 'Az elején mindenki így kezdi. Gyakoroljunk, és menni fog!'];
+  let msg = pick(tiers).replace('{n}', PLAYER || '');
   if (prevPct != null && pct > prevPct) msg += ` Ráadásul ${pct - prevPct} százalékponttal jobb, mint legutóbb!`;
   return msg;
 }
@@ -285,7 +286,12 @@ const LS_KEY = 'zsofi-felveteli-progress-v1';
 
 let KB = null, cardById = {}, catName = {};
 let catFilter = 'all';
-let P = { items: {}, sessions: [], updated: 0 };   // haladás
+const PLAYERS = ['Zsófi', 'Lili'];
+const ALL_KEY = 'felviki-all-v2', PLAYER_KEY = 'felviki-player';
+const blankP = () => ({ items: {}, sessions: [], updated: 0 });
+let ALL = { players: {}, updated: 0 };   // minden játékos haladása
+let PLAYER = null;
+let P = blankP();   // az aktuális játékos haladása
 let db = null, userApi = null, myId = null, isOwner = false, dbWritable = true, saveTimer = null;
 
 // ---------- Haladás ----------
@@ -295,14 +301,31 @@ function mark(id, correct) {
   if (correct) { x.r++; x.b = Math.min(5, (x.b || 1) + 1); } else { x.w++; x.b = 1; }
   x.t = Date.now(); save();
 }
-function loadLocal() { try { const s = localStorage.getItem(LS_KEY); if (s) P = JSON.parse(s); } catch (e) {} P.items ||= {}; P.sessions ||= []; }
+function normP(x) { x = x || blankP(); x.items ||= {}; x.sessions ||= []; x.updated ||= 0; return x; }
+function loadLocal() {
+  try {
+    const a = localStorage.getItem(ALL_KEY);
+    if (a) ALL = JSON.parse(a);
+    else { const old = localStorage.getItem(LS_KEY); if (old) ALL = { players: { 'Zsófi': normP(JSON.parse(old)) }, updated: Date.now() }; }   // régi (egyjátékos) adat: Zsófié
+    const pl = localStorage.getItem(PLAYER_KEY); if (PLAYERS.includes(pl)) PLAYER = pl;
+  } catch (e) {}
+  ALL.players ||= {};
+  if (PLAYER) P = normP(ALL.players[PLAYER] ||= blankP());
+}
+function setPlayer(name) {
+  PLAYER = name; P = normP(ALL.players[name] ||= blankP());
+  try { localStorage.setItem(PLAYER_KEY, name); } catch (e) {}
+}
 function save() {
   P.updated = Date.now();
-  try { localStorage.setItem(LS_KEY, JSON.stringify(P)); } catch (e) {}
+  if (PLAYER) ALL.players[PLAYER] = P;
+  ALL.updated = P.updated;
+  try { localStorage.setItem(ALL_KEY, JSON.stringify(ALL)); } catch (e) {}
   if (db && myId && dbWritable) { clearTimeout(saveTimer); saveTimer = setTimeout(pushRemote, 1200); }
 }
 async function pushRemote() {
-  try { await db.doc('progress/' + myId).set({ items: P.items, sessions: P.sessions.slice(-60), updated: P.updated }); }
+  const players = {}; Object.entries(ALL.players).forEach(([k, v]) => players[k] = { items: v.items, sessions: (v.sessions || []).slice(-60), updated: v.updated || 0 });
+  try { await db.doc('progress/' + myId).set({ players, updated: ALL.updated }); }
   catch (e) { if (e && e.code === 'invalid_argument') dbWritable = false; }
   renderHeader();
 }
@@ -316,8 +339,12 @@ async function initCloud() {
     if (myId) {
       const snap = await db.doc('progress/' + myId).get();
       const r = snap.exists ? snap.data() : null;
-      if (r && (r.updated || 0) > (P.updated || 0)) { P = { items: r.items || {}, sessions: r.sessions || [], updated: r.updated }; try { localStorage.setItem(LS_KEY, JSON.stringify(P)); } catch (e) {} }
-      else if (Object.keys(P.items).length && dbWritable) pushRemote();
+      const remote = r ? (r.players ? { players: r.players, updated: r.updated || 0 } : (r.items ? { players: { 'Zsófi': normP({ items: r.items, sessions: r.sessions, updated: r.updated }) }, updated: r.updated || 0 } : null)) : null;
+      if (remote && (remote.updated || 0) > (ALL.updated || 0)) {
+        ALL = remote; Object.values(ALL.players).forEach(normP);
+        if (PLAYER) P = normP(ALL.players[PLAYER] ||= blankP());
+        try { localStorage.setItem(ALL_KEY, JSON.stringify(ALL)); } catch (e) {}
+      } else if (Object.keys(ALL.players).length && dbWritable) pushRemote();
     }
   } catch (e) { db = null; }
   renderHeader(); if (current === 'home' && KB) renderHome();
@@ -361,7 +388,7 @@ function go(name, fn) {
   if (name !== 'home' && wasHome && !inSub) { try { history.pushState({ fv: 1 }, ''); inSub = true; } catch (e) {} }
   renderHeader();
 }
-function showHome() { current = 'home'; renderHome(); window.scrollTo({ top: 0 }); renderHeader(); }
+function showHome() { if (!PLAYER) { current = 'pick'; renderPick(); renderHeader(); return; } current = 'home'; renderHome(); window.scrollTo({ top: 0 }); renderHeader(); }
 function goHome() { if (inSub) { try { history.back(); return; } catch (e) {} } inSub = false; showHome(); }
 const quizInProgress = () => current === 'quiz' && quiz && quiz.answers.length > 0 && quiz.i < quiz.qs.length;
 window.addEventListener('popstate', () => {
@@ -385,7 +412,7 @@ function askExitQuiz() {
 function tryClose() {
   try { window.close(); } catch (e) {}
   setTimeout(() => {
-    const m = modal(`<div class="say"><div>${felviki('wave')}</div><div class="fb ok"><b class="k">Szia, Zsófi!</b>
+    const m = modal(`<div class="say"><div>${felviki('wave')}</div><div class="fb ok"><b class="k">Szia, ${esc(PLAYER || '')}!</b>
       <span>Bezáráshoz nyomd meg a telefon Vissza gombját (vagy húzd vissza az ujjad a képernyő széléről), esetleg húzd ki az appot a megnyitott alkalmazások közül. Várlak vissza!</span>
       <button class="btn" id="mOk" type="button" style="margin-top:6px">Rendben</button></div></div>`);
     m.querySelector('#mOk').onclick = closeModal;
@@ -394,6 +421,7 @@ function tryClose() {
 function renderHeader() {
   const known = KB ? KB.cards.filter(c => (P.items['c:' + c.id]?.b || 0) >= 3).length : 0;
   const r = $('#hdrRight');
+  if (current === 'pick' && !PLAYER) { r.innerHTML = ''; return; }
   if (current === 'home') {
     r.innerHTML = (KB ? `<span class="cnt">${known}/${KB.cards.length} fogalom megy</span>` : '') + (window.claude ? '' : `<button class="nb x" id="navExit" type="button">Kilépés</button>`);
   } else {
@@ -424,6 +452,7 @@ function renderHome() {
       <div class="bob">${felviki('wave')}</div>
       <div class="bubble pop"><h1>Szia Zsófi és Lili! 🙂</h1><p>FelViki vagyok és azért jöttem, hogy segítsek a felkészülésben.</p></div>
     </div>
+    <div class="row" style="align-items:center;gap:10px"><span class="streak" style="background:var(--blue);transform:rotate(-1.5deg)">Most ${esc(PLAYER)} tanul</span><button class="chip" id="swapPlayer" type="button">Csere ⇄</button></div>
     ${installBox()}
     ${chipsHtml()}
     <div class="stats">
@@ -443,6 +472,7 @@ function renderHome() {
     ${cloudNote()}
   </section>`;
   bindChips(renderHome);
+  $('#swapPlayer').onclick = () => go('pick', renderPick);
   if ($('#installBtn')) $('#installBtn').onclick = async () => { const e = installEvt; installEvt = null; try { e.prompt(); await e.userChoice; } catch (err) {} renderHome(); };
   $('#tQuiz').onclick = () => startQuiz(false);
   $('#tWrong').onclick = () => startQuiz(true);
@@ -450,6 +480,26 @@ function renderHome() {
   $('#tStats').onclick = () => go('stats', renderStats);
   $('#tKb').onclick = () => go('kb', renderKb);
   $('#tHelp').onclick = () => go('help', renderHelp);
+}
+
+// ----- Ki tanul most? -----
+function renderPick() {
+  const counts = n => { const x = ALL.players[n]; return x ? (x.sessions || []).length : 0; };
+  view.innerHTML = `<section>
+    <div class="hero">
+      <div class="bob">${felviki('wave')}</div>
+      <div class="bubble pop"><h1>Szia Zsófi és Lili! 🙂</h1><p>FelViki vagyok és azért jöttem, hogy segítsek a felkészülésben. Ki tanul most?</p></div>
+    </div>
+    <div class="tiles">
+      ${PLAYERS.map((n, i) => `<button class="tile ${i ? 'c-pink' : 'c-blue'}" type="button" data-p="${esc(n)}"><span class="ic">${i ? stick.wave('#ff7a9c') : stick.read('#4a8fe7')}</span><b>${esc(n)}</b><span class="small">${counts(n) ? counts(n) + ' kvíz eddig' : 'Még nem kezdett'}</span></button>`).join('')}
+    </div>
+    <p class="note">Mindkettőtök haladását külön jegyzem meg ezen a telefonon. A kezdőlapon a „Csere” gombbal bármikor válthattok.</p>
+  </section>`;
+  view.querySelectorAll('[data-p]').forEach(b => b.onclick = () => {
+    setPlayer(b.dataset.p); renderHeader();
+    let seen = false; try { seen = localStorage.getItem('zsofi-help-seen') === '1'; localStorage.setItem('zsofi-help-seen', '1'); } catch (e) { seen = true; }
+    if (seen) { if (inSub) goHome(); else showHome(); } else { current = 'help'; renderHelp(); window.scrollTo({ top: 0 }); if (!inSub) { try { history.pushState({ fv: 1 }, ''); inSub = true; } catch (e) {} } renderHeader(); }
+  });
 }
 
 // ----- Útmutató -----
@@ -503,7 +553,7 @@ function startCards() {
 function renderCard() {
   if (di >= deck.length) {
     const knewIt = deck.filter(c => (P.items['c:' + c.id]?.b || 0) >= 2).length;
-    view.innerHTML = `<section><div class="say"><div class="bob">${felviki('cheer')}</div><div class="fb ok pop"><b class="k">Végigértél!</b><span>${deck.length} kártyát néztél át${knewIt ? `, és ebből ${knewIt} már biztosan megy` : ''}. ${pick(['Szuper szorgalmas vagy!', 'Ügyes vagy, Zsófi!', 'Ez igen, ez kitartás!'])}</span></div></div>
+    view.innerHTML = `<section><div class="say"><div class="bob">${felviki('cheer')}</div><div class="fb ok pop"><b class="k">Végigértél!</b><span>${deck.length} kártyát néztél át${knewIt ? `, és ebből ${knewIt} már biztosan megy` : ''}. ${pick(['Szuper szorgalmas vagy!', 'Ügyes vagy, {n}!', 'Ez igen, ez kitartás!'])}</span></div></div>
       <div class="row"><button class="btn" id="again" type="button">Újra</button><button class="btn ghost" id="toQuiz" type="button">Jöhet a kvíz</button></div></section>`;
     $('#again').onclick = startCards; $('#toQuiz').onclick = () => startQuiz(false); renderHeader(); return;
   }
@@ -574,7 +624,7 @@ function answer(given, ok) {
   if (st && quiz.streak >= 5) confetti();
   $('#fb').innerHTML = `<div class="say"><div class="${ok ? 'bob' : ''}">${felviki(ok ? (st ? 'cheer' : 'happy') : 'comfort')}</div>
     <div class="fb ${ok ? 'ok' : 'bad'} pop" role="status">
-      <b class="k">${ok ? (st || pick(PRAISE)) : pick(ENCOURAGE)}</b>
+      <b class="k">${ok ? (st ? nm(st) : pick(PRAISE)) : pick(ENCOURAGE)}</b>
       ${ok ? '' : `<span>Helyes válasz: <b class="hl">${esc(right)}</b></span>`}
       <span>${esc(q.expl)}</span></div></div>
     <button class="btn" id="next" type="button" style="margin-top:12px;width:100%">${quiz.i + 1 < quiz.qs.length ? 'Következő →' : 'Lássuk az eredményt!'}</button>`;
@@ -631,22 +681,22 @@ async function renderStats() {
   let tr = 0, tw = 0; Object.entries(P.items).forEach(([k, x]) => { if (!k.startsWith('c:')) { tr += x.r; tw += x.w; } });
   const acc = tr + tw ? Math.round(100 * tr / (tr + tw)) : null;
   const statMsg = acc == null ? 'Még nincs eredményed. Indíts egy kvízt, és itt fogod látni, mennyit fejlődsz!'
-    : acc >= 80 ? `Eddig ${tr} jó válaszod van, ${acc}% pontossággal. Ez kiváló, Zsófi, nagyon büszke vagyok rád!`
+    : acc >= 80 ? `Eddig ${tr} jó válaszod van, ${acc}% pontossággal. Ez kiváló, ${PLAYER}, nagyon büszke vagyok rád!`
     : acc >= 60 ? `Eddig ${tr} jó válaszod van (${acc}%). Szépen fejlődsz, csak így tovább!`
     : `Eddig ${tr} jó válaszod van. Minden gyakorlással jobb leszel, és én itt vagyok, hogy segítsek!`;
-  view.innerHTML = `<section><h1>Eredmények</h1>
+  view.innerHTML = `<section><h1>${esc(PLAYER)} eredményei</h1>
     <div class="say"><div class="bob">${felviki(acc != null && acc >= 80 ? 'cheer' : 'happy')}</div><div class="fb ok pop"><span>${statMsg}</span></div></div>
     ${statsBlock(P)}<div id="others"></div>
     ${window.claude ? '' : `<h2>Biztonsági mentés</h2>
-    <p class="small muted" style="margin:0">A haladásod ebben a böngészőben tárolódik. Időnként mentsd el fájlba, és ha új telefonra váltasz vagy törlődnek a böngészőadatok, töltsd vissza.</p>
+    <p class="small muted" style="margin:0">${esc(PLAYER)} haladása ebben a böngészőben tárolódik. Időnként mentsd el fájlba, és ha új telefonra váltasz vagy törlődnek a böngészőadatok, töltsd vissza.</p>
     <div class="row"><button class="btn plain" id="bkSave" type="button">Mentés fájlba</button><label class="btn plain" for="bkLoad" style="text-align:center">Visszatöltés fájlból</label><input type="file" id="bkLoad" accept="application/json,.json" hidden></div>
     <div id="bkMsg"></div>`}
-    <button class="btn plain" id="reset" type="button">Saját haladás törlése</button><div id="resetConfirm"></div></section>`;
+    <button class="btn plain" id="reset" type="button">${esc(PLAYER)} haladásának törlése</button><div id="resetConfirm"></div></section>`;
   if ($('#bkSave')) {
     $('#bkSave').onclick = () => {
-      const blob = new Blob([JSON.stringify({ app: 'zsofi-felveteli', v: 1, saved: Date.now(), progress: P })], { type: 'application/json' });
+      const blob = new Blob([JSON.stringify({ app: 'zsofi-felveteli', v: 2, player: PLAYER, saved: Date.now(), progress: P })], { type: 'application/json' });
       const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-      a.download = 'felveteli-haladas-' + new Date().toISOString().slice(0, 10) + '.json';
+      a.download = 'felviki-' + (PLAYER === 'Lili' ? 'lili' : 'zsofi') + '-' + new Date().toISOString().slice(0, 10) + '.json';
       document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
       $('#bkMsg').innerHTML = '<p class="small muted">A mentés elkészült (a Letöltések mappában keresd).</p>';
     };
@@ -655,14 +705,14 @@ async function renderStats() {
       try {
         const d = JSON.parse(await f.text());
         if (d.app !== 'zsofi-felveteli' || !d.progress || typeof d.progress.items !== 'object') throw new Error('format');
-        P = { items: d.progress.items || {}, sessions: d.progress.sessions || [], updated: 0 }; save(); renderStats();
-      } catch (err) { $('#bkMsg').innerHTML = '<div class="fb bad"><span>Ez nem a felvételi gyakorló mentésfájlja. Válaszd ki a „felveteli-haladas-….json” fájlt.</span></div>'; }
+        P = normP({ items: d.progress.items || {}, sessions: d.progress.sessions || [], updated: 0 }); save(); renderStats();
+      } catch (err) { $('#bkMsg').innerHTML = '<div class="fb bad"><span>Ez nem a felvételi gyakorló mentésfájlja. Válaszd ki a „felviki-….json” (vagy régebbi „felveteli-haladas-….json”) fájlt.</span></div>'; }
     };
   }
   $('#reset').onclick = () => {
-    $('#resetConfirm').innerHTML = `<div class="fb bad"><span>Biztosan törlöd az összes eredményedet? Ez nem vonható vissza.</span><div class="row"><button class="btn plain" id="rNo" type="button">Mégse</button><button class="btn" id="rYes" type="button">Törlés</button></div></div>`;
+    $('#resetConfirm').innerHTML = `<div class="fb bad"><span>Biztosan törlöd ${esc(PLAYER)} összes eredményét? Ez nem vonható vissza.</span><div class="row"><button class="btn plain" id="rNo" type="button">Mégse</button><button class="btn" id="rYes" type="button">Törlés</button></div></div>`;
     $('#rNo').onclick = () => $('#resetConfirm').innerHTML = '';
-    $('#rYes').onclick = () => { P = { items: {}, sessions: [], updated: 0 }; save(); renderStats(); };
+    $('#rYes').onclick = () => { P = blankP(); save(); renderStats(); };
   };
   if (!(db && isOwner)) return;
   try {
@@ -670,7 +720,7 @@ async function renderStats() {
     const others = snap.docs.filter(d => d.id !== myId);
     if (!others.length) return;
     const ps = await userApi.profiles(others.map(d => d.id));
-    $('#others').innerHTML = others.map(d => `<details class="kb" style="margin-top:12px"><summary>${esc(ps?.[d.id]?.name || 'Másik felhasználó')} eredményei</summary><div style="display:flex;flex-direction:column;gap:14px;margin-top:12px">${statsBlock(d.data() || {})}</div></details>`).join('');
+    $('#others').innerHTML = others.map(d => `<details class="kb" style="margin-top:12px"><summary>${esc(ps?.[d.id]?.name || 'Másik felhasználó')} eredményei</summary><div style="display:flex;flex-direction:column;gap:14px;margin-top:12px">${(() => { const x = d.data() || {}; return x.players ? Object.entries(x.players).map(([k, v]) => `<h2>${esc(k)}</h2>${statsBlock(v)}`).join('') : statsBlock(x); })()}</div></details>`).join('');
   } catch (e) {}
 }
 
@@ -690,8 +740,11 @@ $('#homeBtn').onclick = () => { if (quizInProgress()) askExitQuiz(); else goHome
 loadLocal();
 fetch('tudastar.json', { cache: 'no-cache' }).then(r => { if (!r.ok) throw new Error(r.status); return r.json(); }).then(d => {
   KB = d; KB.cards.forEach(c => cardById[c.id] = c); KB.categories.forEach(c => catName[c.id] = c.name);
-  let seen = false; try { seen = localStorage.getItem('zsofi-help-seen') === '1'; localStorage.setItem('zsofi-help-seen', '1'); } catch (e) { seen = true; }
-  if (seen) go('home', renderHome); else go('help', renderHelp);
+  if (!PLAYER) { current = 'pick'; renderPick(); renderHeader(); }
+  else {
+    let seen = false; try { seen = localStorage.getItem('zsofi-help-seen') === '1'; localStorage.setItem('zsofi-help-seen', '1'); } catch (e) { seen = true; }
+    if (seen) go('home', renderHome); else go('help', renderHelp);
+  }
   initCloud();
 }).catch(() => { view.innerHTML = `<section><h1>Nem sikerült betölteni a tudástárat</h1><p class="muted">Ellenőrizd az internetkapcsolatot, majd töltsd újra az oldalt.</p></section>`; });
 })();
