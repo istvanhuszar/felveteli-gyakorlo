@@ -656,7 +656,7 @@ function dailyQuestions() {
     return seededShuffle([...real, ...gens], rnd);
   }
   const exam = seededShuffle(KB.questions.filter(q => q.cat === 'felveteli'), rnd).slice(0, 3);
-  const other = seededShuffle(KB.questions.filter(q => q.cat !== 'felveteli' && q.type !== 'mcauto' && practicable(q)), rnd).slice(0, 2);
+  const other = seededShuffle(KB.questions.filter(q => inSubj(q) && q.cat !== 'felveteli' && q.type !== 'mcauto' && practicable(q)), rnd).slice(0, 2);
   return seededShuffle([...exam, ...other], rnd);
 }
 // Matricák
