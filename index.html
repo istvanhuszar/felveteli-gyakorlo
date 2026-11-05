@@ -437,7 +437,7 @@ function save() {
   if (db && myId && dbWritable) { clearTimeout(saveTimer); saveTimer = setTimeout(pushRemote, 1200); }
 }
 async function pushRemote() {
-  const players = {}; Object.entries(ALL.players).forEach(([k, v]) => players[k] = { items: v.items, sessions: (v.sessions || []).slice(-60), updated: v.updated || 0 });
+  const players = {}; Object.entries(ALL.players).forEach(([k, v]) => players[k] = { ...v, sessions: (v.sessions || []).slice(-60), reports: (v.reports || []).slice(-30), updated: v.updated || 0 });
   try { await db.doc('progress/' + myId).set({ players, updated: ALL.updated }); }
   catch (e) { if (e && e.code === 'invalid_argument') dbWritable = false; }
   renderHeader();
@@ -736,7 +736,7 @@ function renderHandoff() {
   view.innerHTML = `<section class="handoff">
     <div class="vs"><div><span class="tag">${esc(quiz.duel.order[0])}</span><b>${quiz.duel.scores[quiz.duel.order[0]]}</b></div><span class="tag">–</span><div><span class="tag">${esc(quiz.duel.order[1])}</span><b>${quiz.duel.scores[quiz.duel.order[1]]}</b></div></div>
     <div class="bob">${felviki('wave')}</div>
-    <div class="bubble pop"><h1>${esc(who)} következik!</h1><p>${quiz.i + 1}. kérdés a 10-ből. Add át a telefont, és ne súgjatok!</p></div>
+    <div class="bubble pop"><h1>${esc(who)} következik!</h1><p>Kérdés: ${quiz.i + 1} / ${quiz.qs.length}. Add át a telefont, és ne súgjatok!</p></div>
     <button class="btn" id="ready" type="button" style="min-width:220px">Kész vagyok!</button>
   </section>`;
   $('#ready').onclick = renderQ;
@@ -794,7 +794,8 @@ function answer(given, ok) {
 }
 function finishQuiz() {
   const s = quiz.answers.filter(a => a.ok).length, n = quiz.answers.length;
-  const prev = [...P.sessions].reverse().find(x => x.w === (quiz.onlyWrong ? 1 : 0) && x.c === catFilter);
+  const modeOf = x => x.m || (x.w === 2 ? 'duel' : x.w ? 'wrong' : 'normal');
+  const prev = [...P.sessions].reverse().find(x => modeOf(x) === quiz.mode && (quiz.mode === 'daily' || x.c === catFilter));
   P.sessions.push({ d: Date.now(), s, n, c: catFilter, w: quiz.onlyWrong ? 1 : 0, m: quiz.mode });
   touchDay();
   const pct = Math.round(100 * s / n);
@@ -960,7 +961,7 @@ fetch('tudastar.json', { cache: 'no-cache' }).then(r => { if (!r.ok) throw new E
 </script>
 
 <script>
-if ('serviceWorker' in navigator && location.protocol === 'https:') {
+if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
   navigator.serviceWorker.register('sw.js').catch(() => {});
 }
 </script>
