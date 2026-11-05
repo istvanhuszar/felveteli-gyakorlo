@@ -1,14 +1,14 @@
 {
-  "name": "Felvételi gyakorló",
-  "short_name": "Felvételi",
+  "name": "FelViki",
+  "short_name": "FelViki",
   "description": "Magyar felvételi gyakorló: tanulókártyák és kvíz magyarázatokkal.",
   "id": "./",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#f3f5fb",
-  "theme_color": "#2f4bd8",
+  "background_color": "#fffdf5",
+  "theme_color": "#fffdf5",
   "lang": "hu",
   "icons": [
     {

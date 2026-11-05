@@ -1,4 +1,4 @@
-# Felvételi gyakorló
+# FelViki – felvételi gyakorló
 
 Magyar felvételi (9. évfolyam) gyakorló app: tanulókártyák, feleletválasztós és kitöltős kvíz magyarázatokkal, a hibás válaszok gyakoroltatásával.
 
@@ -11,6 +11,6 @@ Magyar felvételi (9. évfolyam) gyakorló app: tanulókártyák, feleletválasz
 Első megnyitás után internet nélkül is működik. A haladás a telefon böngészőjében tárolódik; az Eredmények oldalon fájlba menthető és visszatölthető.
 
 ## Tartalom
-- `tudastar.json` – fogalmak és kérdések (generált fájl, verzió: 3f823c3f04)
+- `tudastar.json` – fogalmak és kérdések (generált fájl, verzió: 2fd6fd37e2)
 - `index.html` – az alkalmazás
 - `sw.js`, `manifest.json`, ikonok – offline mód és telepíthetőség
