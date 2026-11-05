@@ -170,6 +170,25 @@ textarea{font:inherit;font-size:18px;width:100%;min-height:90px;padding:10px 12p
 .vs{display:grid;grid-template-columns:1fr auto 1fr;gap:10px;align-items:center;text-align:center}
 .vs b{font-family:var(--hand);font-size:54px;line-height:1}
 .vs>div{display:flex;flex-direction:column;align-items:center;gap:2px}
+.sect{font-family:var(--hand);font-size:30px;margin:6px 0 -4px}
+.passage{background:#fffef8;border:2px dashed var(--soft);border-radius:var(--sk);padding:12px 14px}
+.passage summary{cursor:pointer;font-size:19px}
+.passage p{margin:8px 0 0;line-height:1.5}
+.passage p b{font-family:var(--hand);font-size:22px;margin-right:4px}
+.reqs{display:flex;flex-wrap:wrap;gap:8px}
+.reqs span{border:2px solid var(--ink);border-radius:var(--sk);background:#fff6c2;padding:2px 10px;font-size:16px}
+.timer{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.timer b{font-family:var(--hand);font-size:44px;line-height:1;font-variant-numeric:tabular-nums;min-width:110px}
+.timer.over b{color:var(--bad)}
+#essayTxt{min-height:300px;line-height:1.6}
+.meter{display:flex;gap:8px;flex-wrap:wrap;font-size:16px}
+.meter span{border:2px solid var(--line);border-radius:999px;padding:1px 10px;background:#fff}
+.meter span.ok{border-color:var(--ok);background:var(--ok-bg)}
+.meter span.no{border-color:var(--orange);background:#fff2e8}
+.check{display:flex;gap:10px;align-items:flex-start;font-size:18px;line-height:1.3}
+.check input{width:24px;height:24px;flex:0 0 24px;margin-top:2px;accent-color:var(--green)}
+.plan label{font-size:16px;color:var(--soft)}
+.plan input{font:inherit;font-size:17px;width:100%;padding:6px 10px;border:2px solid var(--line);border-radius:10px;background:#fff}
 .confetti{position:fixed;inset:0;pointer-events:none;z-index:50;overflow:hidden}
 .confetti i{position:absolute;top:-24px;width:12px;height:16px;animation:fall 2.8s cubic-bezier(.3,.6,.5,1) forwards}
 @keyframes fall{to{transform:translateY(110vh) rotate(720deg)}}
@@ -309,7 +328,7 @@ function seededShuffle(a, rnd) { a = a.slice(); for (let i = a.length - 1; i > 0
 function dailyQuestions() {
   const rnd = seeded('felviki-' + dayKey());
   const exam = seededShuffle(KB.questions.filter(q => q.cat === 'felveteli'), rnd).slice(0, 3);
-  const other = seededShuffle(KB.questions.filter(q => q.cat !== 'felveteli' && q.type !== 'mcauto'), rnd).slice(0, 2);
+  const other = seededShuffle(KB.questions.filter(q => q.cat !== 'felveteli' && q.type !== 'mcauto' && practicable(q)), rnd).slice(0, 2);
   return seededShuffle([...exam, ...other], rnd);
 }
 // Matricák
@@ -327,6 +346,9 @@ const BADGES = [
   { id: 'exam80', name: 'Felvételi bajnok', desc: 'Legalább 80% a Felvételi feladatok témakörben', icon: () => doodle.trophy('#ff7a9c'), test: c => c.quiz && c.cat === 'felveteli' && c.pct >= 80 },
   { id: 'fixer', name: 'Hibavadász', desc: 'Hibátlan „Hibáim” kör', icon: () => doodle.oops(), test: c => c.mode === 'wrong' && c.pct === 100 },
   { id: 'cards', name: 'Kártyabajnok', desc: 'Minden kártyát átnéztél', icon: () => doodle.cards(), test: () => KB.cards.every(k => P.items['c:' + k.id]) },
+  { id: 'reader', name: 'Szövegértő', desc: 'Legalább 80% egy szövegértési feladatban', icon: () => doodle.book(), test: c => c.mode === 'reading' && c.pct >= 80 },
+  { id: 'writer', name: 'Fogalmazó', desc: 'Ellenőriztél egy saját fogalmazást', icon: () => doodle.arrow(), test: c => c.essay },
+  { id: 'review', name: 'Ismétlés a tudás anyja', desc: 'Végigcsináltál egy „Ma ismételd” kört', icon: () => doodle.swirl('#33b97f'), test: c => c.mode === 'review' },
   { id: 'duel', name: 'Párbajhős', desc: 'Megnyertél egy párbajt', icon: () => doodle.star('#ff9f43'), test: c => c.duelWin },
 ];
 function checkBadges(ctx, T = P) {
@@ -473,9 +495,14 @@ function migrateIds() {
 
 // ---------- Kiválasztás ----------
 const inCat = x => catFilter === 'all' || x.cat === catFilter;
-function priority(id) { const x = P.items[id]; if (!x || !x.b) return 2; return x.b === 1 ? 0 : 1 + x.b; }  // 0 hibás, 2 új, 3+ tudott
+// Okos ismétlés: a jól tudott kérdés egyre ritkábban jön vissza (doboz: 2 → 1 nap, 3 → 3 nap, 4 → 7 nap, 5 → 14 nap)
+const INTERVAL_DAYS = [0, 0, 1, 3, 7, 14];
+const isDue = x => !!x && x.b >= 2 && Date.now() >= (x.t || 0) + INTERVAL_DAYS[x.b] * 86400000;
+const practicable = q => !q.passage;   // a szövegértési kérdések csak a saját szövegükkel jönnek
+function dueQuestions() { return KB.questions.filter(q => practicable(q) && isDue(P.items[q.id])).sort((a, b) => (P.items[a.id].t + INTERVAL_DAYS[P.items[a.id].b] * 86400000) - (P.items[b.id].t + INTERVAL_DAYS[P.items[b.id].b] * 86400000)); }
+function priority(id) { const x = P.items[id]; if (!x || !x.b) return 2; if (x.b === 1) return 0; return isDue(x) ? 1 : 2 + x.b; }  // 0 hibás, 1 esedékes ismétlés, 2 új, 4+ tudott  // 0 hibás, 2 új, 3+ tudott
 function pickQuestions(n, onlyWrong) {
-  let pool = KB.questions.filter(inCat);
+  let pool = KB.questions.filter(q => inCat(q) && practicable(q));
   if (onlyWrong) pool = pool.filter(q => P.items[q.id]?.b === 1);
   const groups = {};
   shuffle(pool).forEach(q => (groups[priority(q.id)] ||= []).push(q));
@@ -559,7 +586,7 @@ function renderHeader() {
   if (ex) ex.onclick = () => { if (current === 'home') tryClose(); else if (quizInProgress()) askExitQuiz(); else goHome(); };
 }
 function chipsHtml() {
-  const all = [{ id: 'all', name: 'Minden' }, ...KB.categories];
+  const all = [{ id: 'all', name: 'Minden' }, ...KB.categories.filter(c => c.id !== 'szovegertes')];
   return `<div class="chips" role="group" aria-label="Témakör">${all.map(c => `<button class="chip" type="button" data-cat="${c.id}" aria-pressed="${catFilter === c.id}">${esc(c.name)}</button>`).join('')}</div>`;
 }
 function bindChips(rerender) { view.querySelectorAll('.chip').forEach(b => b.onclick = () => { catFilter = b.dataset.cat; rerender(); }); }
@@ -567,7 +594,8 @@ function bindChips(rerender) { view.querySelectorAll('.chip').forEach(b => b.onc
 function renderHome() {
   renderHeader();
   const qs = KB.questions.filter(inCat);
-  const wrong = qs.filter(q => P.items[q.id]?.b === 1).length;
+  const wrong = qs.filter(q => practicable(q) && P.items[q.id]?.b === 1).length;
+  const due = dueQuestions().length;
   const answered = qs.filter(q => P.items[q.id]).length;
   const last = P.sessions[P.sessions.length - 1];
   view.innerHTML = `<section>
@@ -584,14 +612,23 @@ function renderHome() {
       <div class="stat"><b>${Math.min(weekCount(), WEEK_GOAL)}/${WEEK_GOAL}</b><span>heti cél: kvíz${weekCount() >= WEEK_GOAL ? ' ✓' : ''}</span></div>
     </div>
     <div class="tiles">
-      <button class="tile main" type="button" id="tQuiz"><span class="ic">${doodle.bolt()}</span><b>Jöhet a kvíz!</b><span class="small">${QUIZ_LEN} kérdés vegyesen: válassz vagy írd be. A hibáid előre kerülnek.</span></button>
-      <button class="tile c-yellow" type="button" id="tDaily"><span class="ic">${doodle.swirl('#ff9f43')}</span><b>Napi kihívás</b><span class="small">5 kérdés, ma mindenkinek ugyanaz</span>${(P.daily || {})[dayKey()] ? `<span class="done">kész: ${P.daily[dayKey()].s}/${P.daily[dayKey()].n}</span>` : ''}</button>
-      <button class="tile c-orange" type="button" id="tExam"><span class="ic">${doodle.star('#ff9f43')}</span><b>Igazi felvételi</b><span class="small">${KB.questions.filter(q => q.cat === 'felveteli').length} feladat a régi feladatlapokból</span></button>
-      <button class="tile c-blue" type="button" id="tCards"><span class="ic">${doodle.cards()}</span><b>Kártyák</b><span class="small">Fordítsd meg, tudtad-e?</span></button>
+      <button class="tile main" type="button" id="tQuiz"><span class="ic">${doodle.bolt()}</span><b>Jöhet a kvíz!</b><span class="small">${QUIZ_LEN} kérdés vegyesen: válassz vagy írd be. A hibáid és az esedékes ismétlések előre kerülnek.</span></button>
+      <button class="tile c-green" type="button" id="tReview" ${due ? '' : 'disabled'}><span class="ic">${doodle.swirl('#33b97f')}</span><b>Ma ismételd</b><span class="small">${due ? due + ' kérdés esedékes' : 'Ma nincs mit ismételni'}</span></button>
       <button class="tile c-pink" type="button" id="tWrong" ${wrong ? '' : 'disabled'}><span class="ic">${doodle.oops()}</span><b>Hibáim</b><span class="small">${wrong ? wrong + ' kérdés újra' : 'Most nincs egy se!'}</span></button>
-      <button class="tile c-green" type="button" id="tStats"><span class="ic">${doodle.trophy()}</span><b>Eredmények</b><span class="small">Hol tartok?</span></button>
+      <button class="tile c-yellow" type="button" id="tDaily"><span class="ic">${doodle.swirl('#ff9f43')}</span><b>Napi kihívás</b><span class="small">5 kérdés, ma mindenkinek ugyanaz</span>${(P.daily || {})[dayKey()] ? `<span class="done">kész: ${P.daily[dayKey()].s}/${P.daily[dayKey()].n}</span>` : ''}</button>
+      <button class="tile c-blue" type="button" id="tCards"><span class="ic">${doodle.cards()}</span><b>Kártyák</b><span class="small">Fordítsd meg, tudtad-e?</span></button>
+    </div>
+    <h2 class="sect">Felvételire hangolva</h2>
+    <div class="tiles">
+      <button class="tile c-orange" type="button" id="tExam"><span class="ic">${doodle.star('#ff9f43')}</span><b>Igazi felvételi</b><span class="small">${KB.questions.filter(q => q.cat === 'felveteli').length} feladat a régi feladatlapokból</span></button>
+      <button class="tile c-purple" type="button" id="tRead"><span class="ic">${doodle.book()}</span><b>Szövegértés</b><span class="small">${(KB.passages || []).length} szöveg kérdésekkel</span></button>
+      <button class="tile c-yellow wide" type="button" id="tEssay"><span class="ic">${doodle.arrow()}</span><b>Fogalmazás</b><span class="small">${(KB.essays || []).length} régi felvételi téma, 15 perces órával és pontozással</span></button>
+    </div>
+    <h2 class="sect">Játék és jutalom</h2>
+    <div class="tiles">
       <button class="tile c-pink" type="button" id="tDuel"><span class="ic">${stick.flag('#ff7a9c')}</span><b>Párbaj</b><span class="small">Zsófi kontra Lili</span></button>
       <button class="tile c-yellow" type="button" id="tBadges"><span class="ic">${doodle.trophy()}</span><b>Matricáim</b><span class="small">${Object.keys(P.badges || {}).length}/${BADGES.length} gyűjtve</span></button>
+      <button class="tile c-green" type="button" id="tStats"><span class="ic">${doodle.trophy('#33b97f')}</span><b>Eredmények</b><span class="small">Hol tartok?</span></button>
       <button class="tile c-purple" type="button" id="tKb"><span class="ic">${doodle.book()}</span><b>Tudástár</b><span class="small">${KB.cards.length} fogalom</span></button>
       <button class="tile wide" type="button" id="tHelp"><span class="ic">${doodle.question()}</span><b>Hogyan működik?</b><span class="small">FelViki elmagyarázza</span></button>
     </div>
@@ -608,6 +645,9 @@ function renderHome() {
   $('#tKb').onclick = () => go('kb', renderKb);
   $('#tHelp').onclick = () => go('help', renderHelp);
   $('#tDaily').onclick = () => startQuiz(false, { mode: 'daily' });
+  $('#tReview').onclick = () => startQuiz(false, { mode: 'review' });
+  $('#tRead').onclick = () => go('reading', renderReadingList);
+  $('#tEssay').onclick = () => go('essays', renderEssayList);
   $('#tExam').onclick = () => startQuiz(false, { cat: 'felveteli' });
   $('#tDuel').onclick = startDuel;
   $('#tBadges').onclick = () => go('badges', renderBadges);
@@ -664,6 +704,9 @@ function renderHelp() {
       ${step('Sorozat és heti cél', 'Ha minden nap gyakorolsz, nő a sorozatod. Heti célként 5 kvízt javaslok.')}
       ${step('Matricák', 'Ügyes teljesítményért matricákat kapsz. A Matricáim oldalon látod, mi hiányzik még.')}
       ${step('Párbaj', 'Zsófi és Lili felváltva válaszol ugyanazon a telefonon, a végén kiderül, ki nyert.')}
+      ${step('Ma ismételd', 'Amit már tudsz, azt FelViki egyre ritkábban, de rendszeresen visszakérdezi (1, 3, 7, majd 14 nap múlva), hogy a felvételiig se felejtsd el.')}
+      ${step('Szövegértés', 'Elolvasol egy rövid ismeretterjesztő szöveget, aztán kérdésekre válaszolsz. A szöveget közben is visszanézheted.')}
+      ${step('Fogalmazás', 'Régi felvételi témák 15 perces órával, vázlatírással. A végén a felvételi szempontjai szerint pontozod magad.')}
       ${step('Hibás kérdés?', 'A válasz után a „Hibásnak tűnik a kérdés?” gombbal jelezheted, és el is küldheted.')}
     </div>
     <h2>Jó tudni</h2>
@@ -723,11 +766,13 @@ function startQuiz(onlyWrong, opts = {}) {
   if (opts.cat) catFilter = opts.cat;
   let qs;
   if (mode === 'daily') qs = dailyQuestions();
-  else if (mode === 'duel') qs = shuffle(KB.questions.filter(inCat)).slice(0, 10);
+  else if (mode === 'duel') qs = shuffle(KB.questions.filter(q => inCat(q) && practicable(q))).slice(0, 10);
+  else if (mode === 'review') qs = dueQuestions().slice(0, QUIZ_LEN);
+  else if (mode === 'reading') qs = KB.questions.filter(q => q.passage === opts.passage);
   else qs = pickQuestions(QUIZ_LEN, onlyWrong);
   qs = qs.map(prep);
   if (!qs.length) { goHome(); return; }
-  quiz = { qs, i: 0, answers: [], streak: 0, best: 0, onlyWrong, mode, duel: opts.duel || null };
+  quiz = { qs, i: 0, answers: [], streak: 0, best: 0, onlyWrong, mode, duel: opts.duel || null, opts };
   go('quiz', quiz.duel ? renderHandoff : renderQ);
 }
 const duelWho = () => quiz.duel.order[quiz.i % 2];
@@ -752,6 +797,7 @@ function renderQ() {
     <div class="progress"><i style="width:${100 * quiz.i / quiz.qs.length}%"></i></div>
     <div class="q">
       <span class="tag">${q.src ? `<b style="color:var(--ink)">Igazi felvételi</b> · ${esc(q.src)}` : esc(catName[q.cat])} · ${isFill ? 'Írd be a választ' : 'Válaszd ki'}</span>
+      ${q.passage ? passageHtml(q.passage, false) : ''}
       <div class="prompt">${esc(q.prompt)}</div>
       ${q.def ? `<p style="margin:0" class="hl-box"><span class="hl">${esc(q.def)}</span></p>` : ''}
       ${isFill
@@ -800,6 +846,7 @@ function finishQuiz() {
   touchDay();
   const pct = Math.round(100 * s / n);
   if (quiz.mode === 'daily' && !(P.daily ||= {})[dayKey()]) P.daily[dayKey()] = { s, n };
+  if (quiz.mode === 'reading') { const pr = (P.reading ||= {})[quiz.opts.passage]; if (!pr || s >= pr.s) P.reading[quiz.opts.passage] = { s, n }; }
   const fresh = checkBadges({ quiz: true, pct, n, best: quiz.best, mode: quiz.mode, cat: catFilter });
   save();
   const msg = resultPraise(pct, prev ? Math.round(100 * prev.s / prev.n) : null);
@@ -819,7 +866,7 @@ function finishQuiz() {
         <span>Te: <b>${esc(a.given)}</b>${a.ok ? '' : ` · Helyes: <b>${esc(right)}</b>`}</span>
         <span class="small muted">${esc(a.q.expl)}</span></div>`; }).join('')}</div>
   </section>`;
-  $('#again').onclick = () => startQuiz(false);
+  $('#again').onclick = () => startQuiz(quiz.onlyWrong, quiz.opts.mode === 'duel' ? {} : quiz.opts);
   $('#wrongs').onclick = () => startQuiz(true);
   window.scrollTo({ top: 0 }); renderHeader();
   if (pct >= 80) setTimeout(confetti, 250);
@@ -859,6 +906,127 @@ function renderBadges() {
   view.innerHTML = `<section><h1>${esc(PLAYER)} matricái</h1>
     <div class="say"><div class="bob">${felviki('happy')}</div><div class="fb ok pop"><span>${Object.keys(got).length} matricát gyűjtöttél a ${BADGES.length}-ből. ${Object.keys(got).length ? 'Szuper gyűjtemény!' : 'Az első kvíz után már jön is az első!'}</span></div></div>
     <div class="stickers">${BADGES.map(b => stickerHtml(b, got[b.id])).join('')}</div></section>`;
+}
+
+// ----- Szövegértés -----
+function passageHtml(id, open) {
+  const p = (KB.passages || []).find(x => x.id === id); if (!p) return '';
+  return `<details class="passage" ${open ? 'open' : ''}><summary><b>${esc(p.title)}</b> <span class="small muted">· koppints a szövegért</span></summary>${p.paras.map((t, i) => `<p><b>(${i + 1})</b>${esc(t)}</p>`).join('')}</details>`;
+}
+function renderReadingList() {
+  const R = P.reading || {};
+  view.innerHTML = `<section><h1>Szövegértés</h1>
+    <div class="say"><div class="bob">${felviki('happy')}</div><div class="fb pop" style="background:#fff"><span>Olvasd el figyelmesen a szöveget, aztán válaszolj a kérdésekre! Kérdés közben bármikor visszanézheted a szöveget. Tipp: igaz–hamis kérdésnél mindig a szöveghez igazodj, ne a saját tudásodhoz!</span></div></div>
+    <div class="tiles">${(KB.passages || []).map(p => { const n = KB.questions.filter(q => q.passage === p.id).length; const r = R[p.id];
+      return `<button class="tile c-purple" type="button" data-pass="${esc(p.id)}"><span class="ic">${doodle.book()}</span><b>${esc(p.title)}</b><span class="small">${n} kérdés</span>${r ? `<span class="done">legjobb: ${r.s}/${r.n}</span>` : ''}</button>`; }).join('')}</div>
+    <p class="note">A szövegeket FelViki írta a felvételi szövegértési feladatainak mintájára.</p></section>`;
+  view.querySelectorAll('[data-pass]').forEach(b => b.onclick = () => renderPassage(b.dataset.pass));
+}
+function renderPassage(id) {
+  const p = KB.passages.find(x => x.id === id);
+  view.innerHTML = `<section><span class="tag">Szövegértés</span><h1>${esc(p.title)}</h1>
+    <div class="passage">${p.paras.map((t, i) => `<p><b>(${i + 1})</b>${esc(t)}</p>`).join('')}</div>
+    <button class="btn" id="goQ" type="button">Elolvastam, jöhetnek a kérdések!</button></section>`;
+  window.scrollTo({ top: 0 });
+  $('#goQ').onclick = () => startQuiz(false, { mode: 'reading', passage: id });
+}
+
+// ----- Fogalmazás -----
+const SPELL_TRAPS = { lessz: 'lesz', muszály: 'muszáj', higyj: 'higgy', higyjél: 'higgyél', higyjen: 'higgyen', ujjabb: 'újabb', nyilik: 'nyílik', kissebb: 'kisebb', szallag: 'szalag', dícsér: 'dicsér', igér: 'ígér', igérem: 'ígérem', játszuk: 'játsszuk', nemtudom: 'nem tudom', egyenlőre: 'egyelőre (ha „most még” értelemben)', mindíg: 'mindig', mégegyszer: 'még egyszer', 'ugyan úgy': 'ugyanúgy' };
+const STOP = new Set(['a', 'az', 'és', 'is', 'hogy', 'nem', 'de', 'egy', 'meg', 'ha', 'mert', 'van', 'volt', 'én', 'ez', 'azt', 'ezt', 'mint', 'csak', 'már', 'még', 'vagy', 'sok', 'nagyon', 'így', 'akkor', 'mi', 'ki', 'el', 'be', 'fel', 'le', 'ki']);
+function essayStats(t) {
+  const sentences = (t.match(/[^.!?…]*[A-Za-zÁÉÍÓÖŐÚÜŰáéíóöőúüű][^.!?…]*[.!?…]+/g) || []).length;
+  const paras = t.split(/\n/).filter(x => x.trim()).length;
+  const words = t.toLocaleLowerCase('hu').match(/[a-záéíóöőúüű]+/g) || [];
+  const traps = Object.keys(SPELL_TRAPS).filter(w => new RegExp('(^|[^a-záéíóöőúüű])' + w + '([^a-záéíóöőúüű]|$)', 'i').test(t));
+  const freq = {}; words.forEach(w => { if (w.length > 3 && !STOP.has(w)) freq[w] = (freq[w] || 0) + 1; });
+  const repeated = Object.entries(freq).filter(([, n]) => n >= 4).map(([w]) => w);
+  return { sentences, paras, words: words.length, traps, repeated };
+}
+function renderEssayList() {
+  const E = P.essays || {};
+  view.innerHTML = `<section><h1>Fogalmazás</h1>
+    <div class="say"><div class="bob">${felviki('happy')}</div><div class="fb pop" style="background:#fff"><span>A felvételi utolsó feladata egy 10–12 mondatos érvelő fogalmazás, és sok pontot ér! Válassz témát a régi felvételikből, írd meg 15 perc alatt, aztán együtt pontozzuk.</span></div></div>
+    <button class="btn" id="rnd" type="button">Húzz nekem egy témát!</button>
+    <div class="list">${KB.essays.map(e => `<button class="item" type="button" data-essay="${esc(e.id)}" style="text-align:left;font:inherit;cursor:pointer;color:inherit"><span class="tag">${esc(e.src)} · felvételi téma${E[e.id]?.score != null ? ` · legutóbb ${E[e.id].score}/9 pont` : E[e.id]?.text ? ' · elkezdve' : ''}</span><b>${esc(e.title)}</b></button>`).join('')}</div></section>`;
+  view.querySelectorAll('[data-essay]').forEach(b => b.onclick = () => renderEssay(b.dataset.essay));
+  $('#rnd').onclick = () => { const fresh = KB.essays.filter(e => !E[e.id]?.score); renderEssay(pick((fresh.length ? fresh : KB.essays).map(e => e.id))); };
+}
+let essayTimer = null;
+function renderEssay(id) {
+  clearInterval(essayTimer);
+  const e = KB.essays.find(x => x.id === id); const E = ((P.essays ||= {})[id] ||= { text: '', plan: {} });
+  const model = (KB.essayModels || {})[id];
+  const reqs = ['10–12 mondat', e.kind === 'three' ? 'legalább 3 érv' : '2-2 érv mellette és ellene', 'saját élmény', 'saját vélemény', 'bevezetés – tárgyalás – befejezés'];
+  const planFields = e.kind === 'three' ? [['intro', 'Bevezetés: miről lesz szó?'], ['a1', '1. érv'], ['a2', '2. érv'], ['a3', '3. érv'], ['own', 'Saját élmény'], ['end', 'Befejezés: a véleményem']]
+    : [['intro', 'Bevezetés: miről lesz szó?'], ['p1', 'Mellette 1.'], ['p2', 'Mellette 2.'], ['c1', 'Ellene 1.'], ['c2', 'Ellene 2.'], ['own', 'Saját élmény'], ['end', 'Befejezés: a véleményem']];
+  view.innerHTML = `<section><span class="tag">Fogalmazás · ${esc(e.src)}. évi felvételi témája</span><h1>${esc(e.title)}</h1>
+    <div class="fb" style="background:#fff">${esc(e.task)}</div>
+    <div class="reqs">${reqs.map(r => `<span>${esc(r)}</span>`).join('')}</div>
+    <div class="timer" id="timerBox"><b id="tLeft">15:00</b><button class="btn" id="tStart" type="button">Indul az óra</button><button class="btn plain" id="tReset" type="button">Újra</button></div>
+    <details class="kb plan"><summary>Vázlat (ajánlott: 2–3 perc)</summary><div style="display:flex;flex-direction:column;gap:8px;margin-top:8px">${planFields.map(([k, l]) => `<label for="pl-${k}">${esc(l)}</label><input id="pl-${k}" data-k="${k}" value="${esc(E.plan?.[k] || '')}">`).join('')}</div></details>
+    <label class="small muted" for="essayTxt">A fogalmazásod (új bekezdéshez nyomj Entert). A helyesírás-javító ki van kapcsolva, mint a vizsgán.</label>
+    <textarea id="essayTxt" spellcheck="false" autocorrect="off" autocapitalize="sentences">${esc(E.text || '')}</textarea>
+    <div class="meter" id="meter"></div><div id="warn"></div>
+    ${model ? `<details class="kb"><summary>Mintafogalmazás (csak ha elakadtál!)</summary>${model.map(t => `<p>${esc(t)}</p>`).join('')}<p class="small muted">Ezt FelViki írta, nem a felvételi hivatalos megoldása.</p></details>` : ''}
+    <button class="btn" id="essayDone" type="button">Kész vagyok, pontozzuk!</button></section>`;
+  window.scrollTo({ top: 0 });
+  const ta = $('#essayTxt'); let saveT = null;
+  const upd = () => {
+    const st = essayStats(ta.value);
+    $('#meter').innerHTML = `<span class="${st.sentences >= 10 && st.sentences <= 12 ? 'ok' : st.sentences > 12 ? 'no' : ''}">${st.sentences} mondat</span><span class="${st.paras >= 3 ? 'ok' : ''}">${st.paras} bekezdés</span><span>${st.words} szó</span>`;
+    $('#warn').innerHTML = (st.traps.length ? `<p class="small" style="margin:4px 0">Ellenőrizd: ${st.traps.map(w => `<b>${esc(w)}</b> → ${esc(SPELL_TRAPS[w])}`).join(', ')}</p>` : '') + (st.repeated.length ? `<p class="small muted" style="margin:4px 0">Sokszor ismétlődik: ${st.repeated.map(esc).join(', ')}. Keress rá rokon értelmű szót!</p>` : '');
+  };
+  ta.oninput = () => { upd(); clearTimeout(saveT); saveT = setTimeout(() => { E.text = ta.value; save(); }, 800); };
+  view.querySelectorAll('.plan input').forEach(i => i.oninput = () => { (E.plan ||= {})[i.dataset.k] = i.value; clearTimeout(saveT); saveT = setTimeout(save, 800); });
+  upd();
+  let left = 15 * 60, running = false;
+  const show = () => { const box = $('#timerBox'); if (!box) { clearInterval(essayTimer); return; } $('#tLeft').textContent = `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`; box.classList.toggle('over', left <= 0); };
+  $('#tStart').onclick = () => {
+    running = !running; $('#tStart').textContent = running ? 'Szünet' : 'Folytatás';
+    clearInterval(essayTimer);
+    if (running) essayTimer = setInterval(() => { if (!$('#timerBox')) { clearInterval(essayTimer); return; } left = Math.max(0, left - 1); show(); if (!left) { clearInterval(essayTimer); running = false; $('#tStart').textContent = 'Lejárt'; } }, 1000);
+  };
+  $('#tReset').onclick = () => { clearInterval(essayTimer); running = false; left = 15 * 60; $('#tStart').textContent = 'Indul az óra'; show(); };
+  $('#essayDone').onclick = () => { E.text = ta.value; save(); clearInterval(essayTimer); renderEssayCheck(id); };
+}
+function renderEssayCheck(id) {
+  const e = KB.essays.find(x => x.id === id); const E = P.essays[id]; const st = essayStats(E.text || '');
+  const arg = e.kind === 'three' ? 'Legalább 3 érvet írtam.' : '2-2 érvet írtam: mellette és ellene is.';
+  const groups = [
+    ['Tartalom', 3, [['t1', 'A fogalmazás a megadott témáról szól.'], ['t2', arg], ['t3', 'Saját élményre is hivatkoztam.'], ['t4', 'Leírtam a saját véleményemet.'], ['t5', `Legalább 10 mondat (most: ${st.sentences}).`, st.sentences >= 10]]],
+    ['Szerkezet', 3, [['s1', `Három részre tagoltam: bevezetés, tárgyalás, befejezés (bekezdések: ${st.paras}).`, st.paras >= 3], ['s2', 'Van igazi befejezés, a szöveg lezárt, kerek.'], ['s3', 'A részek arányosak, a gondolatok logikusan követik egymást.'], ['s4', 'Minden mondatom a témához tartozik.']]],
+    ['Stílus', 1, [['y1', 'Változatos szavakat használtam, nem ismételgettem ugyanazt.', !st.repeated.length], ['y2', 'Igényesen, a témához illően fogalmaztam (nem szlengben).']]],
+  ];
+  view.innerHTML = `<section><span class="tag">Pontozás · ${esc(e.title)}</span><h1>Nézzük meg együtt!</h1>
+    <div class="say"><div class="bob">${felviki('think')}</div><div class="fb pop" style="background:#fff"><span>Olvasd át a fogalmazásodat, és pipáld ki, ami igaz rá. Légy őszinte, így tanulsz a legtöbbet! A pontozás a felvételi javítási útmutatójának szempontjait követi.</span></div></div>
+    ${groups.map(([name, max, items]) => `<h2>${name} <span class="small muted">(max. ${max} pont)</span></h2><div class="list">${items.map(([k, t, auto]) => `<label class="check"><input type="checkbox" id="ck-${k}" ${auto ? 'checked' : ''}><span>${esc(t)}</span></label>`).join('')}</div>`).join('')}
+    <h2>Helyesírás <span class="small muted">(max. 2 pont)</span></h2>
+    ${st.traps.length ? `<p class="small">FelViki ezeket találta: ${st.traps.map(w => `<b>${esc(w)}</b> → ${esc(SPELL_TRAPS[w])}`).join(', ')}</p>` : ''}
+    <div class="list">
+      <label class="check"><input type="radio" name="hs" value="2" ${st.traps.length ? '' : 'checked'}><span>Legfeljebb 1 kisebb hiba (pl. ékezet, elírás, vessző)</span></label>
+      <label class="check"><input type="radio" name="hs" value="1" ${st.traps.length ? 'checked' : ''}><span>2 kisebb hiba, vagy 1 súlyos (pl. j/ly, igekötő, kettőzés, nagybetű)</span></label>
+      <label class="check"><input type="radio" name="hs" value="0"><span>Ennél több hiba</span></label>
+    </div>
+    <button class="btn" id="calc" type="button">Pontszám kiszámítása</button><div id="res"></div>
+    <details class="kb"><summary>A fogalmazásom</summary>${(E.text || '').split('\n').filter(x => x.trim()).map(t => `<p>${esc(t)}</p>`).join('') || '<p class="muted">Üres.</p>'}</details>
+    <button class="btn plain" id="backEssay" type="button">Vissza a fogalmazáshoz</button></section>`;
+  window.scrollTo({ top: 0 });
+  $('#backEssay').onclick = () => renderEssay(id);
+  $('#calc').onclick = () => {
+    const c = k => $('#ck-' + k)?.checked;
+    const tN = ['t1', 't2', 't3', 't4', 't5'].filter(c).length, sN = ['s1', 's2', 's3', 's4'].filter(c).length;
+    const tart = !c('t1') || st.sentences < 5 ? 0 : tN === 5 ? 3 : tN === 4 ? 2 : 1;
+    const szerk = st.sentences < 4 ? 0 : sN === 4 ? 3 : sN === 3 ? 2 : sN === 2 ? 1 : 0;
+    const stil = c('y1') && c('y2') && st.sentences >= 10 ? 1 : 0;
+    const hs = st.sentences < 4 ? 0 : +(document.querySelector('input[name=hs]:checked')?.value || 0);
+    const sum = tart + szerk + stil + hs;
+    E.score = sum; E.d = Date.now(); touchDay(); const fresh = checkBadges({ essay: true }); save();
+    const msg = sum >= 8 ? `Szuper, ${PLAYER}! ${sum} pont a 9-ből, ez felvételin is nagyon szép lenne!` : sum >= 6 ? `Ügyes! ${sum} pont a 9-ből. Nézd meg, melyik pipa hiányzott, és legközelebb az is meglesz!` : `${sum} pont a 9-ből. Semmi baj, a fogalmazás gyakorlással gyorsan javul! Kezdd vázlattal, és figyelj a 10 mondatra!`;
+    $('#res').innerHTML = `<div class="fb ${sum >= 6 ? 'ok' : 'bad'} pop" style="margin-top:10px"><b class="k">${sum}/9 pont</b><span>Tartalom ${tart}/3 · Szerkezet ${szerk}/3 · Stílus ${stil}/1 · Helyesírás ${hs}/2</span><span>${esc(msg)}</span><span class="small muted">Ez becslés a saját pipáid alapján; a vizsgán a javító tanár dönt.</span></div>`;
+    if (sum >= 8) confetti();
+    showStickers(fresh);
+  };
 }
 
 // ----- Eredmények -----
