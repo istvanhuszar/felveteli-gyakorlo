@@ -81,6 +81,9 @@ svg.doodle{overflow:visible}
 .pchart{display:grid;grid-template-columns:repeat(14,1fr);gap:4px;align-items:end;height:150px;border-bottom:2px solid var(--ink);padding-top:6px}
 .pday{display:flex;flex-direction:column;align-items:center;height:100%;gap:2px}.pday span{font-size:12px}
 .pbars{flex:1;width:100%;display:flex;align-items:flex-end;justify-content:center;gap:2px}.pbars i{display:block;width:45%;min-height:1px;border:1px solid var(--ink);border-bottom:none;border-radius:3px 3px 0 0}
+.joke{border:2.5px dashed var(--ink);border-radius:var(--sk);background:#fffbe6;padding:12px 14px;display:flex;flex-direction:column;gap:8px}
+.joke .jq{font-size:18px;font-weight:700}.joke .ja{font-size:19px;color:var(--ink);font-weight:700;background:linear-gradient(100deg,transparent 1%,var(--yellow) 2%,var(--yellow) 97%,transparent 99%);background-size:100% 45%;background-repeat:no-repeat;background-position:0 90%;align-self:flex-start}
+.joke .jrow{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.joke .jv{font:inherit;font-size:20px;border:2px solid var(--ink);border-radius:var(--sk);background:#fff;padding:2px 12px;cursor:pointer}.joke .jv[aria-pressed="true"]{background:var(--yellow)}
 .subj{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .sbtn{font:inherit;font-size:21px;font-weight:700;border:2.5px solid var(--ink);background:#fff;color:var(--ink);border-radius:var(--sk);padding:8px 10px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;min-height:52px}
 .sbtn[aria-pressed="true"]{background:var(--yellow);box-shadow:3px 4px 0 var(--ink);transform:rotate(-1deg)}
@@ -665,6 +668,31 @@ function dailyQuestions() {
   const other = seededShuffle(KB.questions.filter(q => inSubj(q) && q.cat !== 'felveteli' && q.type !== 'mcauto' && practicable(q)), rnd).slice(0, 2);
   return seededShuffle([...exam, ...other], rnd);
 }
+// A nap vicce: naponta egy, mindkét lánynak ugyanaz (seedelt sorrend, 60 naponként ismétlődik)
+function todaysJoke() {
+  const J = KB.jokes || []; if (!J.length) return null;
+  const order = seededShuffle(J.map((_, i) => i), seeded('felviki-viccek'));
+  const d0 = new Date(2026, 0, 1), now = new Date(); now.setHours(12, 0, 0, 0);
+  const n = Math.floor((now - d0) / 86400000);
+  return J[order[((n % J.length) + J.length) % J.length]];
+}
+function jokeHtml(anim) {
+  const j = todaysJoke(); if (!j) return '';
+  const seen = (P.jokeSeen || {})[dayKey()] === j.id, v = (P.jokes || {})[j.id] || 0;
+  return `<div class="joke" id="joke"><span class="tag">A nap vicce</span><div class="jq">${esc(j.q)}</div>
+    ${seen ? `<div class="ja${anim ? ' pop' : ''}">${esc(j.a)}</div><div class="jrow"><span class="small muted">Tetszett?</span><button class="jv" type="button" data-v="1" aria-pressed="${v === 1}" aria-label="Tetszett">👍</button><button class="jv" type="button" data-v="-1" aria-pressed="${v === -1}" aria-label="Nem tetszett">👎</button></div>`
+      : `<button class="btn plain" type="button" id="jokeShow">Na mi? 🤔</button>`}</div>`;
+}
+function bindJoke() {
+  const j = todaysJoke(); if (!j || !$('#joke')) return;
+  const redraw = anim => { $('#joke').outerHTML = jokeHtml(anim); bindJoke(); };
+  if ($('#jokeShow')) $('#jokeShow').onclick = () => { (P.jokeSeen ||= {})[dayKey()] = j.id; const ks = Object.keys(P.jokeSeen).sort(); while (ks.length > 30) delete P.jokeSeen[ks.shift()]; save(); redraw(true); };
+  view.querySelectorAll('#joke .jv').forEach(b => b.onclick = () => {
+    const v = +b.dataset.v, old = (P.jokes ||= {})[j.id] || 0; if (old === v) return;
+    P.jokes[j.id] = v; save(); redraw();
+    logEvent({ p: PLAYER, j: SUBJ, m: 'joke', c: j.id, s: v > 0 ? 1 : 0, n: 1, sec: 0, cs: {}, w: [j.q + ' – ' + j.a] });
+  });
+}
 // Matricák
 const BADGES = [
   { id: 'first', name: 'Első kvíz', desc: 'Befejeztél egy kvízt', icon: () => doodle.star('#ffd94a'), test: c => c.quiz },
@@ -949,6 +977,7 @@ function renderHome() {
       <div class="bob">${felviki('wave')}</div>
       <div class="bubble pop"><h1>Szia Zsófi és Lili! 🙂</h1><p>FelViki vagyok és azért jöttem, hogy segítsek a felkészülésben.</p></div>
     </div>
+    ${jokeHtml()}
     <div class="row" style="align-items:center;gap:10px"><span class="streak" style="background:var(--blue);transform:rotate(-1.5deg)">Most ${esc(PLAYER)} tanul</span><button class="chip" id="swapPlayer" type="button">Csere ⇄</button></div>
     <div class="subj" role="group" aria-label="Tantárgy"><button class="sbtn" type="button" data-s="magyar" aria-pressed="${!MAT()}"><span class="sym">Aa</span>Magyar</button><button class="sbtn" type="button" data-s="matek" aria-pressed="${MAT()}"><span class="sym">+−</span>Matek</button></div>
     ${installBox()}
@@ -983,7 +1012,7 @@ function renderHome() {
     <div class="scene" aria-hidden="true">${stick.read('#4a8fe7')}${stick.wave('#ff7a9c')}${stick.flag('#33b97f')}</div>
     ${cloudNote()}
   </section>`;
-  bindChips(renderHome);
+  bindChips(renderHome); bindJoke();
   $('#swapPlayer').onclick = () => go('pick', renderPick);
   view.querySelectorAll('.sbtn').forEach(b => b.onclick = () => { if (b.dataset.s !== SUBJ) { setSubj(b.dataset.s); renderHome(); } });
   if ($('#installBtn')) $('#installBtn').onclick = async () => { const e = installEvt; installEvt = null; try { e.prompt(); await e.userChoice; } catch (err) {} renderHome(); };
@@ -1567,7 +1596,7 @@ async function renderParent() {
   const fmtT = t => new Date(t).toLocaleString('hu-HU', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
   const MODE = { normal: 'kvíz', wrong: 'hibák', daily: 'napi kihívás', review: 'ismétlés', reading: 'szövegértés', duel: 'párbaj', essay: 'fogalmazás' };
   const per = PLAYERS.map(name => {
-    const R = rows.filter(r => r.p === name), Q = R.filter(r => r.m !== 'essay');
+    const R = rows.filter(r => r.p === name && r.m !== 'joke'), Q = R.filter(r => r.m !== 'essay');
     const sum = (arr, f) => arr.reduce((a, r) => a + f(r), 0);
     const bySubj = j => { const x = Q.filter(r => r.j === j); return [sum(x, r => r.s), sum(x, r => r.n)]; };
     const cat = {}; Q.forEach(r => Object.entries(r.cs).forEach(([c, [a, b]]) => { const k = (cat[c] ||= [0, 0]); k[0] += a; k[1] += b; }));
@@ -1592,7 +1621,11 @@ async function renderParent() {
     ${per.map(x => `<h2>${esc(x.name)}: témakörök</h2>${Object.keys(x.cat).length ? `<div class="list">${Object.entries(x.cat).sort((a, b) => b[1][1] - a[1][1]).map(([c, [a, b]]) => `<div class="bar"><span>${esc(catName[c] || c)} <span class="small muted">(${b})</span></span><div class="progress"><i style="width:${Math.round(100 * a / b)}%"></i></div><span>${pct(a, b)}</span></div>`).join('')}</div>` : '<p class="muted">Még nincs adat.</p>'}
       ${x.miss.length ? `<h2 style="font-size:1.05em">${esc(x.name)}: gyakori hibák</h2><div class="list">${x.miss.map(([w, k]) => `<div class="item"><span>${esc(w)}</span><span class="small muted">${k}× rossz</span></div>`).join('')}</div>` : ''}`).join('')}
     <h2>Legutóbbi körök</h2>
-    ${rows.length ? `<div class="list">${rows.slice().sort((a, b) => b.t - a.t).slice(0, 20).map(r => `<div class="bar"><span><b>${esc(r.p)}</b> · ${fmtT(r.t)} · ${r.j === 'matek' ? 'matek' : 'magyar'} · ${esc(MODE[r.m] || r.m)}</span><div class="progress"><i style="width:${r.n ? 100 * r.s / r.n : 0}%"></i></div><span>${r.s}/${r.n}</span></div>`).join('')}</div>` : '<p class="muted">Még nincs adat. Az első befejezett kör után itt megjelenik.</p>'}
+    ${rows.some(r => r.m !== 'joke') ? `<div class="list">${rows.filter(r => r.m !== 'joke').sort((a, b) => b.t - a.t).slice(0, 20).map(r => `<div class="bar"><span><b>${esc(r.p)}</b> · ${fmtT(r.t)} · ${r.j === 'matek' ? 'matek' : 'magyar'} · ${esc(MODE[r.m] || r.m)}</span><div class="progress"><i style="width:${r.n ? 100 * r.s / r.n : 0}%"></i></div><span>${r.s}/${r.n}</span></div>`).join('')}</div>` : '<p class="muted">Még nincs adat. Az első befejezett kör után itt megjelenik.</p>'}
+    <h2>A nap vicce – szavazatok</h2>
+    ${(() => { const V = {}; rows.filter(r => r.m === 'joke').sort((a, b) => a.t - b.t).forEach(r => { (V[r.c] ||= { t: r.w[0] || r.c, by: {} }).by[r.p] = r.s ? 1 : -1; });
+      const L = Object.entries(V).map(([id, x]) => ({ id, t: x.t, up: Object.values(x.by).filter(v => v > 0).length, down: Object.values(x.by).filter(v => v < 0).length, by: x.by }));
+      return L.length ? `<p class="small muted" style="margin:0">Lányonként az utolsó szavazat számít. Ami két 👎-t kapott, azt érdemes lecserélni.</p><div class="list">${L.sort((a, b) => (b.down - b.up) - (a.down - a.up)).map(x => `<div class="item"><span>${esc(x.t)}</span><span class="small">${x.up ? '👍 ' + x.up : ''} ${x.down ? '👎 ' + x.down : ''} <span class="muted">(${Object.entries(x.by).map(([n, v]) => esc(n) + (v > 0 ? ' 👍' : ' 👎')).join(', ')})</span></span></div>`).join('')}</div>` : '<p class="muted">Még nincs szavazat.</p>'; })()}
     <h2>Felhőmentés</h2>
     <p class="small muted" style="margin:0">A lányok teljes haladása automatikusan mentődik a Google-táblázatba. Ha egy telefon elveszik vagy törlődik, itt töltheted vissza.</p>
     <div class="list">${PLAYERS.map(n => { const b = (window.__bk || []).find(x => x[0] === n); return `<div class="item"><b>${esc(n)}</b><span class="small">${b ? 'Utolsó mentés: ' + fmtT(new Date(b[1]).getTime()) + ' · ' + b[2] + ' megválaszolt kérdés' : 'Még nincs mentés.'}</span>${b ? `<button class="btn plain" type="button" data-restore="${esc(n)}">${esc(n)} haladásának visszatöltése erre a telefonra</button>` : ''}</div>`; }).join('')}</div>
