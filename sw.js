@@ -1,5 +1,5 @@
-/* Felvételi gyakorló – offline service worker (verzió: dc08d556ad) */
-const CACHE = 'felveteli-dc08d556ad';
+/* Felvételi gyakorló – offline service worker (verzió: 6080cef6e7) */
+const CACHE = 'felveteli-6080cef6e7';
 const ASSETS = ['./', './index.html', './tudastar.json', './manifest.json', './icon-192.png', './icon-512.png', './icon-maskable.png'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim())); });

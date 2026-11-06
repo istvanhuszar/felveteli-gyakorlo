@@ -877,11 +877,13 @@ function pickQuestions(n, onlyWrong) {
   if (onlyWrong) pool = pool.filter(q => P.items[q.id]?.b === 1);
   const groups = {};
   shuffle(pool).forEach(q => (groups[priority(q.id)] ||= []).push(q));
-  const out = []; const usedCards = new Set();
-  for (const k of Object.keys(groups).sort((a, b) => a - b)) for (const q of groups[k]) {
-    if (out.length >= n) break;
-    if (usedCards.has(q.card) && pool.length > n * 2) continue;   // ne legyen két kérdés ugyanarról
-    out.push(q); usedCards.add(q.card);
+  // Prioritási csoportonként haladunk (hibás → esedékes → új → már tudott). Egy csoporton belül előbb különböző fogalmakat
+  // választunk, aztán a csoport többi kérdését, és csak utána jön a következő csoport. Így amíg van új kérdés, nem jön vissza a már jól megválaszolt.
+  const out = [], usedCards = new Set();
+  for (const k of Object.keys(groups).sort((a, b) => a - b)) {
+    const g = groups[k];
+    for (const q of g) { if (out.length >= n) break; if (!usedCards.has(q.card)) { out.push(q); usedCards.add(q.card); } }
+    for (const q of g) { if (out.length >= n) break; if (!out.includes(q)) { out.push(q); usedCards.add(q.card); } }
   }
   return shuffle(out);
 }
@@ -1239,7 +1241,7 @@ function finishQuiz() {
     <div class="result-top"><div><span class="tag">Kiértékelés</span><div class="score pop">${s}/${n}</div></div><div class="bob">${felviki(mood)}</div></div>
     <div class="fb ${pct >= 50 ? 'ok' : 'bad'} pop" style="border-radius:var(--sk)"><p class="praise">${esc(msg)}</p>${quiz.best >= 3 ? `<span>Leghosszabb sorozatod: <b>${quiz.best} jó válasz</b> egymás után!</span>` : ''}</div>
     ${pct >= 80 ? `<div class="scene" aria-hidden="true">${stick.cheer('#ffd94a')}${stick.jump('#ff7a9c')}${stick.flag('#33b97f')}${stick.cheer('#4a8fe7')}</div>` : ''}
-    <div class="row"><button class="btn" id="again" type="button">Még egy kör!</button><button class="btn ghost" id="wrongs" type="button" ${s < n ? '' : 'disabled'}>Hibák újra</button></div>
+    <div class="row"><button class="btn" id="again" type="button">${quiz.mode === 'daily' || quiz.mode === 'review' ? 'Gyakorolj tovább!' : 'Még egy kör!'}</button><button class="btn ghost" id="wrongs" type="button" ${s < n ? '' : 'disabled'}>Hibák újra</button></div>
     <h2>Nézzük meg együtt!</h2>
     <div class="list">${quiz.answers.map((a, k) => {
       const right = rightText(a.q);
@@ -1249,7 +1251,8 @@ function finishQuiz() {
         <span>Te: <b>${esc(a.given)}</b>${a.ok ? '' : ` · Helyes: <b>${esc(right)}</b>`}</span>
         <span class="small muted">${esc(a.q.expl)}</span></div>`; }).join('')}</div>
   </section>`;
-  $('#again').onclick = () => startQuiz(quiz.onlyWrong, quiz.opts.mode === 'duel' ? {} : quiz.opts);
+  // A napi kihívás és a „Ma ismételd” után nem ugyanazt a sort kéri újra, hanem egy normál kört új kérdésekkel
+  $('#again').onclick = () => startQuiz(quiz.onlyWrong, ['duel', 'daily', 'review'].includes(quiz.opts.mode) ? {} : quiz.opts);
   $('#wrongs').onclick = () => startQuiz(true);
   window.scrollTo({ top: 0 }); renderHeader();
   if (pct >= 80) setTimeout(confetti, 250);
