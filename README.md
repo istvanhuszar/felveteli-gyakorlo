@@ -11,6 +11,6 @@ Magyar felvételi (9. évfolyam) gyakorló app: tanulókártyák, feleletválasz
 Első megnyitás után internet nélkül is működik. A haladás a telefon böngészőjében tárolódik; az Eredmények oldalon fájlba menthető és visszatölthető.
 
 ## Tartalom
-- `tudastar.json` – fogalmak és kérdések (generált fájl, verzió: 903206b121)
+- `tudastar.json` – fogalmak és kérdések (generált fájl, verzió: 231195adc1)
 - `index.html` – az alkalmazás
 - `sw.js`, `manifest.json`, ikonok – offline mód és telepíthetőség
