@@ -1,11 +1,12 @@
-/* Felvételi gyakorló – offline service worker (verzió: 231195adc1) */
-const CACHE = 'felveteli-231195adc1';
+/* Felvételi gyakorló – offline service worker (verzió: 234276dac7) */
+const CACHE = 'felveteli-234276dac7';
 const ASSETS = ['./', './index.html', './tudastar.json', './manifest.json', './icon-192.png', './icon-512.png', './icon-maskable.png'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim())); });
 self.addEventListener('fetch', e => {
   const req = e.request;
   if (req.method !== 'GET' || new URL(req.url).origin !== location.origin) return;
-  e.respondWith(fetch(req).then(res => { const copy = res.clone(); caches.open(CACHE).then(c => c.put(req, copy)).catch(() => {}); return res; })
+  // cache: 'no-cache' – mindig megkérdezi a szervert, van-e újabb változat (különben a GitHub ~10 percig a régit adhatja)
+  e.respondWith(fetch(req.url, { cache: 'no-cache', credentials: 'same-origin' }).then(res => { const copy = res.clone(); caches.open(CACHE).then(c => c.put(req, copy)).catch(() => {}); return res; })
     .catch(() => caches.match(req, { ignoreSearch: true }).then(hit => hit || caches.match('./index.html'))));
 });
